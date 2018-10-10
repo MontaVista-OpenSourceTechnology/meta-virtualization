@@ -28,6 +28,7 @@ SRC_URI = "\
 	file://docker.init \
 	file://hi.Dockerfile \
 	file://context-use-golang.org-x-net-pkg-until-we-move-to-go.patch \
+        file://enable_tcp_keep_alive_in_default_client.patch \
 	"
 
 # Apache-2.0 for docker
@@ -37,6 +38,8 @@ LIC_FILES_CHKSUM = "file://src/import/LICENSE;md5=9740d093a080530b5c5c6573df9af4
 GO_IMPORT = "import"
 
 S = "${WORKDIR}/git"
+
+PR .= ".1"
 
 DOCKER_VERSION = "17.06.0"
 PV = "${DOCKER_VERSION}+git${SRCREV_docker}"

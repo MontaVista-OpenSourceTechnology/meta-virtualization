@@ -1,0 +1,55 @@
+From a40316672edc567e528b36d7ad41893de9c6d595 Mon Sep 17 00:00:00 2001
+From: Josh Hawn <josh.hawn@docker.com>
+Date: Tue, 1 Aug 2017 15:45:31 -0700
+Subject: [PATCH] [client] Enable TCP Keep-Alive in Default Client
+
+Some network environments may have NATs, proxies, or gateways which
+kill idle connections. There are many Docker API operations which may
+be idle for long periods of time (such as ContainerWait and ContainerAttach)
+and may result in unexpected connection closures or hangs if TCP keepalives
+are not used.
+
+This patch updates the default HTTP transport used by the Docker client
+package to enable TCP Keep-Alive with a keep-alive interval of 30 seconds.
+It also sets a connect timeout of 30 seconds.
+
+Docker-DCO-1.1-Signed-off-by: Josh Hawn <josh.hawn@docker.com> (github: jlhawn)
+
+Upstream-Status: Backport
+https://github.com/moby/moby/pull/34359/commits/a40316672edc567e528b36d7ad41893de9c6d595
+
+Signed-off-by: Armin Kuster <akuster@mvista.com>
+
+---
+ client/client.go | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+Index: git/src/import/client/client.go
+===================================================================
+--- git.orig/src/import/client/client.go
++++ git/src/import/client/client.go
+@@ -48,11 +48,13 @@ package client
+ import (
+ 	"errors"
+ 	"fmt"
++	"net"
+ 	"net/http"
+ 	"net/url"
+ 	"os"
+ 	"path/filepath"
+ 	"strings"
++	"time"
+ 
+ 	"github.com/docker/docker/api"
+ 	"github.com/docker/docker/api/types"
+@@ -127,6 +129,10 @@ func NewEnvClient() (*Client, error) {
+ 		client = &http.Client{
+ 			Transport: &http.Transport{
+ 				TLSClientConfig: tlsc,
++				DialContext: (&net.Dialer{
++					KeepAlive: 30 * time.Second,
++					Timeout:   30 * time.Second,
++				}).DialContext,
+ 			},
+ 			CheckRedirect: CheckRedirect,
+ 		}

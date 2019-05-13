@@ -35,8 +35,8 @@ SRC_URI = "http://linuxcontainers.org/downloads/${BPN}-${PV}.tar.gz \
 	file://cgroups-work-around-issue-in-gcc-7.patch \
 	"
 
-SRC_URI[md5sum] = "7bfd95280522d7936c0979dfea92cdb5"
-SRC_URI[sha256sum] = "0d8e34b302cfe4c40c6c9ae5097096aa5cc2c1dfceea3f0f22e3e16c4a4e8494"
+SRC_URI[md5sum] = "fc61eb4749b9a255aa177fc9022c6f1f"
+SRC_URI[sha256sum] = "ca74228175c8124bf6b1b26c82ac2c05b2384a957c213164b18210b9c99e2eed"
 
 S = "${WORKDIR}/${BPN}-${PV}"
 

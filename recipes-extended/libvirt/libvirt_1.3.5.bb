@@ -23,7 +23,7 @@ RDEPENDS_libvirt-libvirtd_append_x86 = " dmidecode"
 #connman blocks the 53 port and libvirtd can't start its DNS service
 RCONFLICTS_${PN}_libvirtd = "connman"
 
-PR.=".2"
+PR.=".3"
 
 SRC_URI = "http://libvirt.org/sources/libvirt-${PV}.tar.gz;name=libvirt \
            file://tools-add-libvirt-net-rpc-to-virt-host-validate-when.patch \
@@ -43,6 +43,7 @@ SRC_URI = "http://libvirt.org/sources/libvirt-${PV}.tar.gz;name=libvirt \
 	   file://0001-Added-configure-variable-for-placing-systemd-untis-l.patch \
            file://CVE-2015-5160.patch \
            file://CVE-2018-3639.patch \
+           file://CVE-2019-10167.patch \
           "
 
 SRC_URI[libvirt.md5sum] = "f9dc1e63d559eca50ae0ee798a4c6c6d"

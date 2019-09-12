@@ -27,6 +27,8 @@ SRC_URI = "\
 	git://github.com/docker/cli;branch=18.09;name=cli;destsuffix=git/cli \
 	file://docker.init \
         file://0001-libnetwork-use-GO-instead-of-go.patch \
+        file://CVE-2018-15664-P1.patch \
+        file://CVE-2018-15664-P2.patch \
 	"
 
 # Apache-2.0 for docker
@@ -39,6 +41,7 @@ S = "${WORKDIR}/git"
 
 DOCKER_VERSION = "18.09.0"
 PV = "${DOCKER_VERSION}+git${SRCREV_docker}"
+PR .= ".1"
 
 DEPENDS = " \
     go-cli \

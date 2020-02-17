@@ -14,6 +14,8 @@ RDEPENDS_${PN}-ptest += "\
 S = "${WORKDIR}/git"
 PV = "2.7.1+${SRCREV}"
 
+PR .= ".3"
+
 FILESEXTRAPATHS_append := "${THISDIR}/${PN}-git:"
 
 SRCREV = "b29cb89e9e9fe3119b2e5dd5d4fb79141635b7cc"
@@ -31,6 +33,9 @@ SRC_URI = "file://openvswitch-switch \
            file://0002-Define-WAIT_ANY-if-not-provided-by-system.patch \
            file://CVE-2017-9263.patch \
            file://python-switch-remaining-scripts-to-use-python3.patch \
+	   file://CVE-2018-17204.patch \
+	   file://CVE-2018-17205.patch \
+	   file://CVE-2018-17206.patch \
            "
 
 # Temporarily backport patches to better support py3. These have been

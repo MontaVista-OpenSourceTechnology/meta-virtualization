@@ -17,6 +17,7 @@ S = "${WORKDIR}/git"
 PV = "2.13+${SRCPV}"
 
 FILESEXTRAPATHS_append := "${THISDIR}/${PN}-git:"
+PR .= "1"
 
 SRCREV = "71d553b995d0bd527d3ab1e9fbaf5a2ae34de2f3"
 SRC_URI = "file://openvswitch-switch \
@@ -31,6 +32,7 @@ SRC_URI = "file://openvswitch-switch \
            file://python-switch-remaining-scripts-to-use-python3.patch \
            file://systemd-update-tool-paths.patch \
            file://systemd-create-runtime-dirs.patch \
+           file://0001-CVE-2020-27827.patch \
            "
 
 LIC_FILES_CHKSUM = "file://LICENSE;md5=1ce5d23a6429dff345518758f13aaeab"

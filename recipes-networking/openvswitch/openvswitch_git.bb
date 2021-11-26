@@ -14,7 +14,7 @@ RDEPENDS_${PN}-ptest += "\
 S = "${WORKDIR}/git"
 PV = "2.7.1+${SRCREV}"
 
-PR .= ".3"
+PR .= ".4"
 
 FILESEXTRAPATHS_append := "${THISDIR}/${PN}-git:"
 
@@ -36,6 +36,7 @@ SRC_URI = "file://openvswitch-switch \
 	   file://CVE-2018-17204.patch \
 	   file://CVE-2018-17205.patch \
 	   file://CVE-2018-17206.patch \
+	   file://0001-CVE-2020-27827.patch \
            "
 
 # Temporarily backport patches to better support py3. These have been

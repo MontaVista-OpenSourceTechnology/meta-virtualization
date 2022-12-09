@@ -30,6 +30,7 @@ SRC_URI = "\
 	file://context-use-golang.org-x-net-pkg-until-we-move-to-go.patch \
         file://enable_tcp_keep_alive_in_default_client.patch \
         file://CVE-2018-10892.patch \
+        file://CVE-2021-21284.patch \
 	"
 
 # Apache-2.0 for docker
@@ -40,7 +41,7 @@ GO_IMPORT = "import"
 
 S = "${WORKDIR}/git"
 
-PR .= ".2"
+PR .= ".3"
 
 DOCKER_VERSION = "17.06.0"
 PV = "${DOCKER_VERSION}+git${SRCREV_docker}"

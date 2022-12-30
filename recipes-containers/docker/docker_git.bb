@@ -31,6 +31,7 @@ SRC_URI = "\
         file://enable_tcp_keep_alive_in_default_client.patch \
         file://CVE-2018-10892.patch \
         file://CVE-2021-21284.patch \
+        file://CVE-2018-20699.patch \
 	"
 
 # Apache-2.0 for docker

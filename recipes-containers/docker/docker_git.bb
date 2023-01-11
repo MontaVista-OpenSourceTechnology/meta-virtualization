@@ -32,6 +32,7 @@ SRC_URI = "\
         file://CVE-2018-10892.patch \
         file://CVE-2021-21284.patch \
         file://CVE-2018-20699.patch \
+        file://CVE-2021-21285.patch \
 	"
 
 # Apache-2.0 for docker

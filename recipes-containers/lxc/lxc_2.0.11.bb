@@ -33,7 +33,10 @@ SRC_URI = "http://linuxcontainers.org/downloads/${BPN}-${PV}.tar.gz \
 	file://lxc-doc-upgrade-to-use-docbook-3.1-DTD.patch \
 	file://logs-optionally-use-base-filenames-to-report-src-fil.patch \
 	file://cgroups-work-around-issue-in-gcc-7.patch \
+        file://0001-Patching-an-incoming-CVE-CVE-2022-47952.patch \
 	"
+
+PR = "r1"
 
 SRC_URI[md5sum] = "fc61eb4749b9a255aa177fc9022c6f1f"
 SRC_URI[sha256sum] = "ca74228175c8124bf6b1b26c82ac2c05b2384a957c213164b18210b9c99e2eed"

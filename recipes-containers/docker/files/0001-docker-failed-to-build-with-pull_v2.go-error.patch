@@ -1,0 +1,34 @@
+From adeda1e8cf08389dc9d6555857e20a649a626c7a Mon Sep 17 00:00:00 2001
+From: Vivek Kumbhar <vkumbhar@mvista.com>
+Date: Tue, 14 Feb 2023 10:28:42 +0000
+Subject: [PATCH] docker failed to build with pull_v2.go error
+
+---
+ distribution/pull_v2.go | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/distribution/pull_v2.go b/distribution/pull_v2.go
+index b7e5eea83a..e8931ce1f3 100644
+--- git/src/import/distribution/pull_v2.go
++++ git/src/import/distribution/pull_v2.go
+@@ -460,7 +460,7 @@ func (p *v2Puller) pullSchema1(ctx context.Context, ref reference.Named, unverif
+ 	for i := len(verifiedManifest.FSLayers) - 1; i >= 0; i-- {
+ 		blobSum := verifiedManifest.FSLayers[i].BlobSum
+ 		if err = blobSum.Validate(); err != nil {
+-			return "", "", errors.Wrapf(err, "could not validate layer digest %q", blobSum)
++			return "", "", errors.New(err, "could not validate layer digest %q", blobSum)
+ 		}
+ 
+ 		var throwAway struct {
+@@ -549,7 +549,7 @@ func (p *v2Puller) pullSchema2(ctx context.Context, ref reference.Named, mfst *s
+ 	// to top-most, so that the downloads slice gets ordered correctly.
+ 	for _, d := range mfst.Layers {
+ 	        if err := d.Digest.Validate(); err != nil {
+-			return "", errors.Wrapf(err, "could not validate layer digest %q", d.Digest)
++			return "", errors.New(err, "could not validate layer digest %q", d.Digest)
+ 		}
+ 		layerDescriptor := &v2LayerDescriptor{
+ 			digest:            d.Digest,
+-- 
+2.18.2
+

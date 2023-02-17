@@ -33,7 +33,6 @@ SRC_URI = "\
         file://CVE-2021-21284.patch \
         file://CVE-2018-20699.patch \
         file://CVE-2021-21285.patch \
-        file://0001-docker-failed-to-build-with-pull_v2.go-error.patch \
 	"
 
 # Apache-2.0 for docker

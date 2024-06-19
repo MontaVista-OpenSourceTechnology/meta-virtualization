@@ -51,6 +51,9 @@ SRC_URI = "http://libvirt.org/sources/libvirt-${PV}.tar.xz;name=libvirt \
            file://CVE-2022-0897.patch \
            file://CVE-2021-3975.patch \
            file://CVE-2021-4147.patch \
+           file://CVE-2024-1441.patch \
+           file://CVE-2024-2494.patch \
+           file://CVE-2024-2496.patch \
           "
 SRC_URI[libvirt.md5sum] = "a870e63f20fac2ccf98e716d05256145"
 SRC_URI[libvirt.sha256sum] = "167c185be45560e73dd3e14ed375778b555c01455192de2dafc4d0f74fabebc0"

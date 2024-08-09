@@ -17,7 +17,7 @@ S = "${WORKDIR}/git"
 PV = "2.13+${SRCPV}"
 
 FILESEXTRAPATHS_append := "${THISDIR}/${PN}-git:"
-PR .= "1"
+PR .= ".2"
 
 SRCREV = "71d553b995d0bd527d3ab1e9fbaf5a2ae34de2f3"
 SRC_URI = "file://openvswitch-switch \
@@ -35,6 +35,7 @@ SRC_URI = "file://openvswitch-switch \
            file://0001-CVE-2020-27827.patch \
            file://CVE-2021-3905.patch \
            file://CVE-2020-35498.patch \
+           file://CVE-2023-5366.patch \
            "
 
 LIC_FILES_CHKSUM = "file://LICENSE;md5=1ce5d23a6429dff345518758f13aaeab"

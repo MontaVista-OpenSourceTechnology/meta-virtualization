@@ -47,7 +47,7 @@ S = "${WORKDIR}/git"
 
 inherit meson gettext update-rc.d pkgconfig systemd useradd perlnative
 USERADD_PACKAGES = "${PN}"
-GROUPADD_PARAM:${PN} = "-r qemu; -r kvm"
+GROUPADD_PARAM:${PN} = "-r qemu; -r kvm; -r libvirt; -r virtlogin"
 USERADD_PARAM:${PN} = "-r -g qemu -G kvm qemu"
 
 

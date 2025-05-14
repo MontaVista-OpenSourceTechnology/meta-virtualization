@@ -50,6 +50,7 @@ USERADD_PACKAGES = "${PN}"
 GROUPADD_PARAM:${PN} = "-r qemu; -r kvm; -r libvirt; -r virtlogin"
 USERADD_PARAM:${PN} = "-r -g qemu -G kvm qemu"
 
+CFLAGS += "${@oe.utils.vartrue('DEBUG_BUILD', '-Wno-error=inline', '', d)}"
 
 EXTRA_OEMESON += "--cross-file ${WORKDIR}/meson-${PN}.cross"
 do_write_config:append() {

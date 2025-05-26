@@ -103,11 +103,12 @@ do_install() {
     ln -sf ${libexecdir}/cni/ ${D}/opt/cni/bin
 }
 
+PACKAGECONFIG ?= "ca-certs"
+PACKAGECONFIG[ca-certs] = ",,,ca-certificates"
+
 FILES:${PN} += "${libexecdir}/cni/* /opt/cni/bin"
 
 INSANE_SKIP:${PN} += "ldflags already-stripped"
 
 deltask compile_ptest_base
-
-RDEPENDS:${PN} += " ca-certificates"
 RRECOMMENDS:${PN} += "iptables iproute2"

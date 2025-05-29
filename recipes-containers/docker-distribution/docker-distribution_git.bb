@@ -39,6 +39,8 @@ do_compile() {
 
 	cd ${S}
 
+	# See https://github.com/distribution/distribution/issues/4627
+	sed -i -e 's#+unknown##' version/version.go
 	oe_runmake binaries
 }
 

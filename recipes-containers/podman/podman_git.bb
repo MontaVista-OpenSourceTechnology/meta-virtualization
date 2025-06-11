@@ -20,7 +20,6 @@ SRCREV = "227df90eb7c021097c9ba5f8000c83648a598028"
 SRC_URI = " \
     git://github.com/containers/libpod.git;branch=v5.4;protocol=https;destsuffix=${GO_SRCURI_DESTSUFFIX} \
     ${@bb.utils.contains('PACKAGECONFIG', 'rootless', 'file://50-podman-rootless.conf', '', d)} \
-    file://run-ptest \
 "
 
 LICENSE = "Apache-2.0"
@@ -55,7 +54,7 @@ export BUILDFLAGS = "${GOBUILDFLAGS}"
 
 inherit go goarch
 inherit container-host
-inherit systemd pkgconfig ptest
+inherit systemd pkgconfig
 
 do_configure[noexec] = "1"
 
@@ -128,17 +127,6 @@ do_install() {
 	fi
 }
 
-do_install_ptest () {
-	cp ${S}/src/import/Makefile ${D}${PTEST_PATH}
-	install -d ${D}${PTEST_PATH}/test
-	cp -r ${S}/src/import/test/system ${D}${PTEST_PATH}/test
-
-	# Some compatibility links for the Makefile assumptions.
-	install -d ${D}${PTEST_PATH}/bin
-	ln -s ${bindir}/podman ${D}${PTEST_PATH}/bin/podman
-	ln -s ${bindir}/podman-remote ${D}${PTEST_PATH}/bin/podman-remote
-}
-
 FILES:${PN} += " \
     ${systemd_unitdir}/system/* \
     ${nonarch_libdir}/systemd/* \
@@ -169,16 +157,3 @@ RRECOMMENDS:${PN} += "slirp4netns \
                       kernel-module-xt-tcpudp \
                       "
 RCONFLICTS:${PN} = "${@bb.utils.contains('PACKAGECONFIG', 'docker', 'docker', '', d)}"
-
-RDEPENDS:${PN}-ptest += " \
-	bash \
-	bats \
-	buildah \
-	coreutils \
-	file \
-	gnupg \
-	jq \
-	make \
-	skopeo \
-	tar \
-"

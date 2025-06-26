@@ -46,8 +46,8 @@ class BootimgBiosXenPlugin(wic.pluginbase.SourcePlugin):
 
     """
 
-    name = 'bootimg-biosxen'
-    __PCBIOS_MODULE_NAME = "bootimg-pcbios"
+    name = 'bootimg_biosxen'
+    __PCBIOS_MODULE_NAME = "bootimg_pcbios"
     __imgBiosObj = None
 
     @classmethod

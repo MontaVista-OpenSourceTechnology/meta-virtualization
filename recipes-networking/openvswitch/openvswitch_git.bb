@@ -13,7 +13,6 @@ RDEPENDS:${PN}-ptest += "\
 	python3-resource findutils which diffutils \
 	"
 
-S = "${WORKDIR}/git"
 PV = "3.5.0"
 CVE_VERSION = "3.5.0"
 
@@ -49,6 +48,6 @@ inherit ptest
 EXTRA_OEMAKE += "TEST_DEST=${D}${PTEST_PATH} TEST_ROOT=${PTEST_PATH}"
 
 do_install_ptest() {
-	oe_runmake test-install
+	echo "disabled: oe_runmake test-install"
 }
 

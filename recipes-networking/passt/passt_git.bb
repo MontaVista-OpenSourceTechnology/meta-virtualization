@@ -18,8 +18,6 @@ SRC_URI = "git://passt.top/passt;branch=master"
 PV = "2025_03_20+git"
 SRCREV = "cf4d3f05c9263d1b0a88dbbcf9e48d34cac6708e"
 
-S = "${WORKDIR}/git"
-
 do_configure () {
 	:
 }

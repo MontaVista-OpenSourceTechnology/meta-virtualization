@@ -10,8 +10,6 @@ SRCREV = "00d5d07ab1c8afcf481ffa5958719943b6ecfde4"
 PV = "0.5.3+git"
 GO_IMPORT = "import"
 
-S = "${WORKDIR}/git"
-
 inherit goarch
 inherit go
 

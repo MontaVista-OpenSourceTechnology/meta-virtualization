@@ -16,8 +16,6 @@ REQUIRED_DISTRO_FEATURES ?= "seccomp"
 
 DEPENDS = "glib-2.0 libcap libseccomp libslirp"
 
-S = "${WORKDIR}/git"
-
 RRECOMMENDS:${PN} += "kernel-module-tun"
 
 inherit autotools pkgconfig

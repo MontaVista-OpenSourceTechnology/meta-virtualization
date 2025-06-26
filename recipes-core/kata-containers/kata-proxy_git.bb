@@ -13,8 +13,6 @@ SKIP_RECIPE[kata-proxy] ?= "kata containers are currently broken, patches accept
 
 RDEPENDS:${PN}-dev:append = "bash"
 
-S = "${WORKDIR}/git"
-
 inherit go
 
 do_compile() {
@@ -31,7 +29,7 @@ do_compile() {
 
 do_install() {
 	mkdir -p ${D}/${libexecdir}/kata-containers
-	cp ${WORKDIR}/git/src/${GO_IMPORT}/kata-proxy ${D}/${libexecdir}/kata-containers
+	cp ${UNPACKDIR}/git/src/${GO_IMPORT}/kata-proxy ${D}/${libexecdir}/kata-containers
 }
 
 deltask compile_ptest_base

@@ -22,7 +22,7 @@ SRC_URI += "file://init.cfg \
             ${@bb.utils.contains('DISTRO_FEATURES', 'vmsep', 'file://static.cfg', '', d)} \
             file://initrd.cfg"
 
-S = "${WORKDIR}/busybox-${PV}"
+S = "${UNPACKDIR}/busybox-${PV}"
 
 # override security-flags settings, we have some warnings to ignore
 SECURITY_STRINGFORMAT = ""

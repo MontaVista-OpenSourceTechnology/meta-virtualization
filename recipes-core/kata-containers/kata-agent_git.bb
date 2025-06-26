@@ -12,8 +12,6 @@ RDEPENDS:${PN}-dev:append = "bash"
 
 SKIP_RECIPE[kata-agent] ?= "kata containers are currently broken, patches accepted"
 
-S = "${WORKDIR}/git"
-
 inherit go
 
 do_compile() {
@@ -30,10 +28,10 @@ do_compile() {
 
 do_install() {
 	mkdir -p ${D}/${bindir}/
-	cp ${WORKDIR}/git/src/${GO_IMPORT}/kata-agent ${D}/${bindir}
+	cp ${UNPACKDIR}/git/src/${GO_IMPORT}/kata-agent ${D}/${bindir}
 
 	mkdir -p ${D}/${systemd_unitdir}/system
-	cp ${WORKDIR}/git/src/${GO_IMPORT}/kata-agent.service ${D}/${systemd_unitdir}/system
+	cp ${UNPACKDIR}/git/src/${GO_IMPORT}/kata-agent.service ${D}/${systemd_unitdir}/system
 }
 
 deltask compile_ptest_base

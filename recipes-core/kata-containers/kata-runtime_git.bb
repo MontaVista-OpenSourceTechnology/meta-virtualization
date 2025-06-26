@@ -21,8 +21,6 @@ DEPENDS += "yq-native"
 
 SKIP_RECIPE[kata-runtime] ?= "kata containers are currently broken, patches accepted"
 
-S = "${WORKDIR}/git"
-
 inherit go
 
 do_compile() {
@@ -41,10 +39,10 @@ do_compile() {
 
 do_install() {
 	mkdir -p ${D}/${bindir}
-	cp ${WORKDIR}/git/src/${GO_IMPORT}/kata-runtime ${D}/${bindir}
+	cp ${UNPACKDIR}/git/src/${GO_IMPORT}/kata-runtime ${D}/${bindir}
 	
 	mkdir -p ${D}/${datadir}/defaults/kata-containers/
-	cp ${WORKDIR}/git/src/${GO_IMPORT}/cli/config/configuration-qemu.toml ${D}/${datadir}/defaults/kata-containers/configuration.toml
+	cp ${UNPACKDIR}/git/src/${GO_IMPORT}/cli/config/configuration-qemu.toml ${D}/${datadir}/defaults/kata-containers/configuration.toml
 
 	sed -e 's|/usr/bin/qemu-lite-system-x86_64|/usr/bin/qemu-system-x86_64|' -i ${D}/${datadir}/defaults/kata-containers/configuration.toml
 	sed -e 's|/usr/share/kata-containers/vmlinuz.container|/var/lib/hyper/kernel|' -i ${D}/${datadir}/defaults/kata-containers/configuration.toml

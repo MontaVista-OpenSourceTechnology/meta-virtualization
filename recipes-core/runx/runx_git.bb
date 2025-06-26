@@ -21,7 +21,6 @@ SRC_URI[sha256sum] = "bf338980b1670bca287f9994b7441c2361907635879169c64ae78364ef
 LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=945fc9aa694796a6337395cc291ddd8c"
 
-S = "${WORKDIR}/git"
 PV = "v1.0-git${SRCREV_runx}"
 
 inherit features_check

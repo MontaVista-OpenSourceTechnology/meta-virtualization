@@ -36,11 +36,11 @@ Signed-off-by: Bruce Ashfield <bruce.ashfield@gmail.com>
  contrib/check-config.sh | 4 +++-
  1 file changed, 3 insertions(+), 1 deletion(-)
 
-diff --git a/contrib/check-config.sh b/contrib/check-config.sh
-index b9cc6bf87d..3124548d99 100755
---- a/contrib/check-config.sh
-+++ b/contrib/check-config.sh
-@@ -266,7 +266,9 @@ echo 'Optional Features:'
+Index: import/contrib/check-config.sh
+===================================================================
+--- import.orig/contrib/check-config.sh
++++ import/contrib/check-config.sh
+@@ -246,7 +246,9 @@ echo 'Optional Features:'
  	check_flags CGROUP_PIDS
  }
  {
@@ -51,6 +51,3 @@ index b9cc6bf87d..3124548d99 100755
  	# Kernel v5.8+ removes MEMCG_SWAP_ENABLED.
  	if [ "$kernelMajor" -lt 5 ] || [ "$kernelMajor" -eq 5 -a "$kernelMinor" -le 8 ]; then
  		CODE=${EXITCODE}
--- 
-2.39.2
-

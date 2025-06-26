@@ -10,11 +10,11 @@ Signed-off-by: Bruce Ashfield <bruce.ashfield@gmail.com>
  git/cli/scripts/build/binary | 3 +--
  1 file changed, 1 insertion(+), 2 deletions(-)
 
-Index: git/cli/scripts/build/binary
+Index: docker-moby-28.3.0+gite0183475e03cd05b6a560d8b22fe0a83cd1cba14/cli/scripts/build/binary
 ===================================================================
---- git.orig/cli/scripts/build/binary
-+++ git/cli/scripts/build/binary
-@@ -13,8 +13,6 @@
+--- docker-moby-28.3.0+gite0183475e03cd05b6a560d8b22fe0a83cd1cba14.orig/cli/scripts/build/binary
++++ docker-moby-28.3.0+gite0183475e03cd05b6a560d8b22fe0a83cd1cba14/cli/scripts/build/binary
+@@ -13,8 +13,6 @@ fi
  
  echo "Building $GO_LINKMODE $(basename "${TARGET}")"
  
@@ -23,7 +23,7 @@ Index: git/cli/scripts/build/binary
  if [ "$(go env GOOS)" = "windows" ]; then
    if [ ! -x "$(command -v goversioninfo)" ]; then
      >&2 echo "goversioninfo not found, skipping manifesting binary"
-@@ -24,6 +22,6 @@
+@@ -24,6 +22,6 @@ if [ "$(go env GOOS)" = "windows" ]; the
    fi
  fi
  

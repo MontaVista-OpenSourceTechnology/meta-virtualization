@@ -6,8 +6,6 @@ DESCRIPTION = "runc is a CLI tool for spawning and running containers according 
 LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://src/import/LICENSE;md5=435b266b3899aa8a959f17d41c56def8"
 
-S = "${WORKDIR}/git"
-
 PV = "${RUNC_VERSION}+git${SRCPV}"
 
 inherit go

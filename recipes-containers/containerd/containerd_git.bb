@@ -27,7 +27,7 @@ CVE_VERSION = "v2.0.2"
 PROVIDES += "virtual/containerd containerd-opencontainers"
 RPROVIDES:${PN} = "virtual-containerd containerd-opencontainers"
 
-S = "${WORKDIR}/git/src/github.com/containerd/containerd/v2"
+S = "${UNPACKDIR}/git/src/github.com/containerd/containerd/v2"
 
 PV = "${CONTAINERD_VERSION}+git"
 
@@ -43,7 +43,7 @@ do_configure[noexec] = "1"
 do_compile() {
     export GOARCH="${TARGET_GOARCH}"
 
-    export GOPATH="${S}/src/import/.gopath:${S}/src/import/vendor:${STAGING_DIR_TARGET}/${prefix}/local/go:${WORKDIR}/git/"
+    export GOPATH="${S}/src/import/.gopath:${S}/src/import/vendor:${STAGING_DIR_TARGET}/${prefix}/local/go:${UNPACKDIR}/git/"
     export GOROOT="${STAGING_DIR_NATIVE}/${nonarch_libdir}/${HOST_SYS}/go"
 
     # Pass the needed cflags/ldflags so that cgo

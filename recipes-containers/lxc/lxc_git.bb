@@ -52,8 +52,6 @@ SRC_URI = "git://github.com/lxc/lxc.git;branch=stable-6.0;protocol=https \
 SRCREV = "fe31d844e882d5cc176a7935a93b14b4b2823992"
 PV = "v6.0.3"
 
-S = "${WORKDIR}/git"
-
 # Let's not configure for the host distro.
 #
 PTEST_CONF = "${@bb.utils.contains('DISTRO_FEATURES', 'ptest', '-Dtests=true', '', d)}"

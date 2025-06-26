@@ -16,11 +16,11 @@ INSANE_SKIP:${PN} += "ldflags textrel"
 inherit goarch
 inherit go
 
-S = "${WORKDIR}/git/src/github.com/opencontainers/runtime-tools"
+S = "${UNPACKDIR}/git/src/github.com/opencontainers/runtime-tools"
 
 do_compile() {
 	export GOARCH="${TARGET_GOARCH}"
-	export GOPATH="${WORKDIR}/git/"
+	export GOPATH="${UNPACKDIR}/git/"
 	export GOROOT="${STAGING_LIBDIR}/go"
 
 	# Pass the needed cflags/ldflags so that cgo

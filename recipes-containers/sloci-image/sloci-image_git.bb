@@ -11,8 +11,6 @@ DEPENDS = ""
 SRCREV = "4015e49763e5a738026a5bbfcf32b38b5a4fa650"
 PV = "v0.1.0+git"
 
-S = "${WORKDIR}/git"
-
 do_compile() { 
 	:
 }

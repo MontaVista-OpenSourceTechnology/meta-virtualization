@@ -32,8 +32,6 @@ LIC_FILES_CHKSUM = "file://src/import/LICENSE;md5=86d3f3a95c324c9479bd8986968f43
 
 GO_IMPORT = "import"
 
-S = "${WORKDIR}/git"
-
 PV = "v1.4.0+git"
 
 PODMAN_PKG = "github.com/containers/podman-tui"

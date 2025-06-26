@@ -18,14 +18,14 @@ inherit go
 # go package. 
 EXTRA_OEMAKE = "BUILDTAGS=''"
 
-S = "${WORKDIR}/git/src/github.com/opencontainers/image-tools"
+S = "${UNPACKDIR}/git/src/github.com/opencontainers/image-tools"
 
 COMPATIBLE_HOST:riscv64 = "null"
 
 do_compile() {
 	export GOARCH="${TARGET_GOARCH}"
 	export GOROOT="${STAGING_LIBDIR}/go"
-	export GOPATH="${WORKDIR}/git/"
+	export GOPATH="${UNPACKDIR}/git/"
 
 	# Pass the needed cflags/ldflags so that cgo
 	# can find the needed headers files and libraries

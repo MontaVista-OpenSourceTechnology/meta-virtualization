@@ -15,8 +15,6 @@ SRC_URI = " \
 LICENSE = "MIT"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=ffc9091894702bc5dcf4cc0085561ef5"
 
-S = "${WORKDIR}/git"
-
 BBCLASSEXTEND = "native"
 
 # tini links with -static, so no PIE for us

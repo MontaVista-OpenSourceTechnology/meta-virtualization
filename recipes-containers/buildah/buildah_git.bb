@@ -6,8 +6,6 @@ DESCRIPTION = "A tool that facilitates building OCI container images."
 LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://src/github.com/containers/buildah/LICENSE;md5=e3fc50a88d0a364313df4b21ef20c29e"
 
-S = "${WORKDIR}/git"
-
 BUILDAH_VERSION = "1.39.1"
 
 PV = "${BUILDAH_VERSION}"

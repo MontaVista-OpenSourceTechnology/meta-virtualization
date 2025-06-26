@@ -14,7 +14,6 @@ SRC_URI = "git://github.com/projectatomic/oci-systemd-hook;branch=master;protoco
 "
 
 PV = "0.2.0+git"
-S = "${WORKDIR}/git"
 
 inherit autotools pkgconfig
 

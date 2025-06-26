@@ -17,8 +17,6 @@ SRC_URI = "git://github.com/singularityware/singularity.git;protocol=https;branc
 PV = "2.3.1+git"
 SRCREV = "e214d4ebf0a1274b1c63b095fd55ae61c7e92947"
 
-S = "${WORKDIR}/git"
-
 inherit python3native autotools-brokensep
 EXTRA_OECONF = "--prefix=/usr/local"
 

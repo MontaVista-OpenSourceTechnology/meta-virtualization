@@ -12,7 +12,7 @@ SRC_URI = "git://github.com/docker/distribution.git;branch=main;name=distributio
 PACKAGES =+ "docker-registry"
 
 PV = "v3.0.0-beta.1"
-S = "${WORKDIR}/git/src/github.com/distribution/distribution/v3"
+S = "${UNPACKDIR}/git/src/github.com/distribution/distribution/v3"
 
 GO_IMPORT = "import"
 
@@ -24,7 +24,7 @@ EXTRA_OEMAKE = "BUILDTAGS=''"
 
 do_compile() {
 	export GOARCH="${TARGET_GOARCH}"
-	export GOPATH="${WORKDIR}/git/"
+	export GOPATH="${UNPACKDIR}/git/"
 	export GOROOT="${STAGING_LIBDIR}/go"
 	# Pass the needed cflags/ldflags so that cgo
 	# can find the needed headers files and libraries

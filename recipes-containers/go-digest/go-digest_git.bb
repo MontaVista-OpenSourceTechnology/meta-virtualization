@@ -7,12 +7,10 @@ LIC_FILES_CHKSUM = "file://src/${PKG_NAME}/LICENSE;md5=2d6fc0e85c3f118af64c85a78
 SRCNAME = "go-digest"
 
 PKG_NAME = "github.com/opencontainers/${SRCNAME}"
-SRC_URI = "git://${PKG_NAME};destsuffix=git/src/${PKG_NAME};branch=master;protocol=https"
+SRC_URI = "git://${PKG_NAME};destsuffix=${BB_GIT_DEFAULT_DESTSUFFIX}/src/${PKG_NAME};branch=master;protocol=https"
 
 SRCREV = "65fac7b55eb714642e9359458656939349dcb766"
 PV = "v1.0.0-rc0+git"
-
-S = "${WORKDIR}/git"
 
 # NO-OP the do compile rule because this recipe is source only.
 do_compile() {

@@ -9,8 +9,6 @@ SRC_URI = "git://github.com/containers/podman-compose.git;branch=main;protocol=h
 
 SRCREV = "4d899edeb3d0622a986d90a6b2d7356aa550723e"
 
-S = "${WORKDIR}/git"
-
 DEPENDS += "python3-pyyaml-native"
 
 RDEPENDS:${PN} += "\

@@ -7,12 +7,10 @@ LIC_FILES_CHKSUM = "file://src/${PKG_NAME}/LICENSE;md5=27ef03aa2da6e424307f102e8
 SRCNAME = "image-spec"
 
 PKG_NAME = "github.com/opencontainers/${SRCNAME}"
-SRC_URI = "git://${PKG_NAME};destsuffix=git/src/${PKG_NAME};branch=main;protocol=https"
+SRC_URI = "git://${PKG_NAME};destsuffix=${BB_GIT_DEFAULT_DESTSUFFIX}/src/${PKG_NAME};branch=main;protocol=https"
 
 SRCREV = "39ab2d54cfa8fe1bee1ff20001264986d92ab85a"
 PV = "v1.1.0"
-
-S = "${WORKDIR}/git"
 
 # NO-OP the do compile rule because this recipe is source only.
 do_compile() {

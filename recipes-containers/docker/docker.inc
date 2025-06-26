@@ -31,11 +31,7 @@ PACKAGECONFIG[seccomp] = "seccomp,,libseccomp"
 PACKAGECONFIG[docker-init] = ",,,docker-init"
 PACKAGECONFIG[transient-config] = "transient-config"
 
-
 GO_IMPORT = "import"
-S = "${WORKDIR}/git"
-
-
 
 inherit systemd update-rc.d
 inherit go

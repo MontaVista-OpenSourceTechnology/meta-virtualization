@@ -10,7 +10,7 @@ SRC_URI = "git://github.com/jfrazelle/riddler;branch=master;protocol=https;dests
 SRCREV = "66698f2a5cb6854a1095673a15dcc253f0e28f93"
 PV = "v0.6.4+git"
 
-S = "${WORKDIR}/git/src/github.com/genuinetools/riddler"
+S = "${UNPACKDIR}/git/src/github.com/genuinetools/riddler"
 GO_IMPORT = "github.com/jessfraz/riddler"
 
 inherit goarch
@@ -28,7 +28,7 @@ do_compile() {
 	export GOARCH="${TARGET_GOARCH}"
 	export GOROOT="${STAGING_LIBDIR}/go"
 	# export GOPATH="${S}/src/import/vendor:${WORKDIR}/git/"
-	export GOPATH="${WORKDIR}/git/"
+	export GOPATH="${UNPACKDIR}/git/"
 
 	# Pass the needed cflags/ldflags so that cgo
 	# can find the needed headers files and libraries

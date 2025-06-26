@@ -30,7 +30,7 @@ SRCREV = "e8d9f916e04364c128a939535889dc2da74162b5"
 PV = "v1.18.0+git"
 GO_IMPORT = "import"
 
-S = "${WORKDIR}/git/src/github.com/containers/skopeo"
+S = "${UNPACKDIR}/git/src/github.com/containers/skopeo"
 
 inherit goarch
 inherit pkgconfig
@@ -48,7 +48,7 @@ EXTRA_OEMAKE = "BUILDTAGS=''"
 do_compile() {
 	export GOARCH="${TARGET_GOARCH}"
 
-	export GOPATH="${S}/src/import/.gopath:${S}/src/import/vendor:${STAGING_DIR_TARGET}/${prefix}/local/go:${WORKDIR}/git/"
+	export GOPATH="${S}/src/import/.gopath:${S}/src/import/vendor:${STAGING_DIR_TARGET}/${prefix}/local/go:${UNPACKDIR}/git/"
 	cd ${S}
 
 	# Pass the needed cflags/ldflags so that cgo

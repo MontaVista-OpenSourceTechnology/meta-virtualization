@@ -14,8 +14,6 @@ SRC_URI = "git://github.com/containers/netavark.git;protocol=https;branch=v1.14 
            file://run-ptest"
 require ${BPN}-crates.inc
 
-S = "${WORKDIR}/git"
-
 PACKAGECONFIG ?= "aardvark-dns"
 
 # From the documentation of netavark

@@ -12,8 +12,6 @@ SRC_URI = "git://github.com/containers/aardvark-dns;protocol=https;nobranch=1 \
            file://run-ptest"
 require ${BPN}-crates.inc
 
-S = "${WORKDIR}/git"
-
 inherit cargo cargo-update-recipe-crates features_check ptest
 
 # Cargo installs the binary to bin so move it to where podman expects it

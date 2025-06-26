@@ -16,8 +16,6 @@ SRC_URI = "\
 
 PV = "2.1.12+git"
 
-S = "${WORKDIR}/git"
-
 inherit pkgconfig
 
 export GOCACHE = "${B}/.cache"

@@ -14,10 +14,9 @@ At a high level, we expect the scope of cri-o to be restricted to the following 
  - Resource isolation as required by the CRI \
  "
 
-SRCREV_cri-o = "318db72eb0b3d18c22c995aa7614a13142287296"
+SRCREV_cri-o = "87ce1c120d022797913f0792e15dd0107d19dffe"
 SRC_URI = "\
-	git://github.com/kubernetes-sigs/cri-o.git;branch=release-1.32;name=cri-o;protocol=https;destsuffix=${GO_SRCURI_DESTSUFFIX} \
-        file://0001-Makefile-introduce-GO_TEST-for-more-flexible-configu.patch;patchdir=src/import \
+	git://github.com/kubernetes-sigs/cri-o.git;branch=release-1.34;name=cri-o;protocol=https;destsuffix=${GO_SRCURI_DESTSUFFIX} \
         file://crio.conf \
         file://run-ptest \
 	"
@@ -28,7 +27,7 @@ LIC_FILES_CHKSUM = "file://src/import/LICENSE;md5=e3fc50a88d0a364313df4b21ef20c2
 
 GO_IMPORT = "import"
 
-PV = "1.32.2+git${SRCREV_cri-o}"
+PV = "1.33.0+git${SRCREV_cri-o}"
 
 inherit features_check ptest
 REQUIRED_DISTRO_FEATURES ?= "seccomp"

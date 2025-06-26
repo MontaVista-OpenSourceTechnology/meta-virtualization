@@ -12,8 +12,6 @@ SRC_URI = " \
 
 PV = "v5.0.0+git"
 
-S = "${WORKDIR}/git"
-
 PACKAGECONFIG ??= "gui"
 PACKAGECONFIG[gui] = ",-Dupdate-icon-cache=false -Dcompile-schemas=false,python3-pygobject"
 

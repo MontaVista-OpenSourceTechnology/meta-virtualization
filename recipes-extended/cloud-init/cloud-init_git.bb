@@ -15,8 +15,6 @@ SRC_URI = "git://github.com/canonical/cloud-init;branch=25.1.x;protocol=https \
 
 PV = "v25.1.1+git"
 
-S = "${WORKDIR}/git"
-
 DISTUTILS_INSTALL_ARGS:append = " ${@bb.utils.contains('DISTRO_FEATURES', 'sysvinit', '--init-system=sysvinit_deb', '', d)}"
 DISTUTILS_INSTALL_ARGS:append = " ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', '--init-system=systemd', '', d)}"
 

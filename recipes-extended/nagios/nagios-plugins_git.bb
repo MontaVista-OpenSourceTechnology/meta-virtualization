@@ -12,7 +12,6 @@ SRCREV = "7c74420158c3e228b3d66d4c781a6abc7a93075a"
 SRC_URI = "git://github.com/nagios-plugins/nagios-plugins.git;protocol=https;branch=master"
 
 PV = "2.4.12+git"
-S = "${WORKDIR}/git"
 
 inherit autotools gettext pkgconfig autotools-brokensep
 

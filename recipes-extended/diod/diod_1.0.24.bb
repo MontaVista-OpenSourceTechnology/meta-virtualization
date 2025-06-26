@@ -20,8 +20,6 @@ DEPENDS = "libcap ncurses lua"
 EXTRA_OECONF = "--disable-auth \
                 --with-systemdsystemunitdir=${systemd_unitdir}/system"
 
-S = "${WORKDIR}/git"
-
 inherit autotools pkgconfig systemd
 
 do_install:append () {

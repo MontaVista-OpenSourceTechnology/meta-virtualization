@@ -13,7 +13,6 @@ DEPENDS += "glib-2.0 libvirt libvirt-glib python3-docutils-native"
 SRC_URI = "git://gitlab.com/libvirt/libvirt-dbus.git;nobranch=1;protocol=https"
 
 SRCREV = "0c355bb8921d7cbccf93f41a8615fcd973e64f70"
-S = "${WORKDIR}/git"
 
 inherit meson pkgconfig
 

@@ -17,8 +17,6 @@ SRC_URI = "git://github.com/avpatel/xvisor-next.git;branch=master;protocol=https
     file://0001-build-use-usr-bin-env-for-python-scripts.patch \
 "
 
-S = "${WORKDIR}/git"
-
 EXTRA_OEMAKE += "ARCH=\"${@map_xvisor_arch(d.getVar('TARGET_ARCH'), d)}\" I=${D}"
 
 CONFIG = "${@get_oemake_config(d.getVar('TARGET_ARCH'), d)}"

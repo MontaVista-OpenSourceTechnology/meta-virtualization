@@ -21,8 +21,6 @@ SRC_URI = "gitsm://github.com/ceph/ceph.git;protocol=https;branch=main \
 SRCREV = "a53e858fd7cc6fd8c04f37d503ce9ed7080f2da6"
 PV = "20.0.0+git"
 
-S = "${WORKDIR}/git"
-
 DEPENDS = "boost bzip2 curl cryptsetup expat gperf-native \
            keyutils libaio libibverbs lua lz4 \
            nspr nss ninja-native \

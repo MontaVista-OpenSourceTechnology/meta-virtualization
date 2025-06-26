@@ -10,6 +10,4 @@ SRC_URI = "git://github.com/containers/fuse-overlayfs.git;nobranch=1;protocol=ht
 
 DEPENDS = "fuse3"
 
-S = "${WORKDIR}/git"
-
 inherit autotools pkgconfig

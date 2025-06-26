@@ -14,8 +14,6 @@ SRC_URI = "git://github.com/libvmi/libvmi.git;branch=master;protocol=https \
 
 SRCREV = "f02aeb751fd27bd4ae753dcd5904a4ef3232821e"
 
-S = "${WORKDIR}/git"
-
 inherit autotools-brokensep pkgconfig
 
 # Noramlly dynamic libs would be of the form libXX.so.1.0.0 in which case

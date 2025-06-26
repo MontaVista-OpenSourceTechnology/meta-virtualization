@@ -14,7 +14,6 @@ SRC_URI = "git://gitlab.com/virt-viewer/virt-viewer.git;protocol=https;branch=ma
 
 SRCREV = "107f60c168c405cf1782b686a65bf4af16ec8c9d"
 PV = "11.0+git"
-S = "${WORKDIR}/git"
 
 REQUIRED_DISTRO_FEATURES = "opengl"
 

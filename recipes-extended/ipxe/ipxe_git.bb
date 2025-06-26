@@ -25,6 +25,8 @@ SRC_URI = " \
     file://0004-build-Remove-unsafe-disable-function-wrapper-from-le.patch;patchdir=.. \
     "
 
+S = "${UNPACKDIR}/${BB_GIT_DEFAULT_DESTSUFFIX}/src"
+
 FILES:${PN} = "/usr/share/firmware/*.rom"
 
 EXTRA_OEMAKE = ' \
@@ -34,8 +36,6 @@ EXTRA_OEMAKE = ' \
     EXTRA_HOST_LDFLAGS="${BUILD_LDFLAGS}" \
     NO_WERROR="1" \
 '
-
-S = "${WORKDIR}/git/src"
 
 do_compile() {
     # Makefile.housekeeping:111: GNU gold is unsuitable for building iPXE

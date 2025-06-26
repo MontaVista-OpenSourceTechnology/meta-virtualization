@@ -15,8 +15,6 @@ SRC_URI = "git://github.com/jbruchon/${BPN}.git;protocol=https;branch=master \
     file://0001-cpp-fix-race-writing-token.h-files.patch \
 "
 
-S = "${WORKDIR}/git"
-
 DEPENDS = "gperf-native"
 
 BBCLASSEXTEND = "native nativesdk"

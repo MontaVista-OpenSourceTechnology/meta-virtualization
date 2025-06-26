@@ -13,6 +13,4 @@ SRC_URI = "git://github.com/Irqbalance/irqbalance;branch=master;protocol=https \
            file://0001-add-void-to-fix-strict-prototypes.patch \
           "
 
-S = "${WORKDIR}/git"
-
 CFLAGS += "-Wno-error=format-security"

@@ -11,7 +11,6 @@ SRC_URI = " \
 "
 
 SRCREV = "9b26bec8828a38fcb3bc0e5f6f33b03fa99c4b68"
-S = "${WORKDIR}/git"
 
 inherit meson pkgconfig gobject-introspection gettext vala gtk-doc
 

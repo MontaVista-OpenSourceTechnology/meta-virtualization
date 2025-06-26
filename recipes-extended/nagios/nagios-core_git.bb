@@ -23,8 +23,6 @@ SRC_URI = "git://github.com/NagiosEnterprises/nagioscore.git;protocol=https;bran
 
 PV = "4.5.9+git"
 
-S = "${WORKDIR}/git"
-
 inherit autotools-brokensep update-rc.d systemd update-alternatives pkgconfig
 
 DEPENDS = "gd unzip-native openssl"

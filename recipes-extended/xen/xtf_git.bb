@@ -14,8 +14,6 @@ LIC_FILES_CHKSUM = "file://COPYING;md5=a5680865974e05cf0510615ee1d745d8"
 
 PV = "0+git"
 
-S = "${WORKDIR}/git"
-
 inherit python3native
 
 PACKAGES = "${PN}"

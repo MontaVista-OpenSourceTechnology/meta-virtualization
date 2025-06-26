@@ -12,8 +12,8 @@ DEPENDS = "libseccomp libcap-ng"
 inherit features_check
 REQUIRED_DISTRO_FEATURES = "seccomp"
 
-SRC_URI += "crate://crates.io/virtiofsd/1.7.0"
-SRC_URI[virtiofsd-1.7.0.sha256sum] = "6f043afa23aedbb18f36084b9df831796a9e4c62e73a16fe557de0cf30d7708d"
+SRC_URI += "crate://crates.io/virtiofsd/1.13.2"
+SRC_URI[virtiofsd-1.13.2.sha256sum] = "3a9b54fcc6a1de125ef205f98a442c0e1d8f52977f21f80889382ec37a3bd14a"
 
 inherit cargo
 inherit cargo-update-recipe-crates

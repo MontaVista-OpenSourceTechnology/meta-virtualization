@@ -16,8 +16,7 @@ CONTAINERIMAGE ?= "zeddii/app-container:latest"
 CONTAINERPORT ?= "9000"
 EXTERNALPORT ?= "10000"
 
-S = "${WORKDIR}/sources"
-UNPACKDIR = "${S}"
+S = "${UNPACKDIR}"
 
 do_install() {
 

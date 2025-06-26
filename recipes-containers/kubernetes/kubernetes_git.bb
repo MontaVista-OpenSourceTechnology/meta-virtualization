@@ -5,9 +5,9 @@ applications across multiple hosts, providing basic mechanisms for deployment, \
 maintenance, and scaling of applications. \
 "
 
-PV = "v1.32.0+git"
-CVE_VERSION = "1.32.0"
-SRCREV_kubernetes = "5fe148234f8ab1184f26069c4f7bef6c37efe347"
+PV = "v1.33.2+git"
+CVE_VERSION = "1.33.2"
+SRCREV_kubernetes = "f208b6c73d17f7c2535393117ab93cd18b673e47"
 SRCREV_kubernetes-release = "21382abdbfa8e6a43fd417306fa649cb651cc06e"
 PE = "1"
 
@@ -23,7 +23,7 @@ PV:class-devupstream = "v1.28.2+git${SRCREV_kubernetes}"
 
 SRCREV_FORMAT ?= "kubernetes_release"
 
-SRC_URI = "git://github.com/kubernetes/kubernetes.git;branch=release-1.32;name=kubernetes;protocol=https;destsuffix=${BB_GIT_DEFAULT_DESTSUFFIX}/src/github.com/kubernetes/kubernetes \
+SRC_URI = "git://github.com/kubernetes/kubernetes.git;branch=release-1.33;name=kubernetes;protocol=https;destsuffix=${BB_GIT_DEFAULT_DESTSUFFIX}/src/github.com/kubernetes/kubernetes \
            git://github.com/kubernetes/release;branch=master;name=kubernetes-release;destsuffix=${BB_GIT_DEFAULT_DESTSUFFIX}/release;protocol=https"
 
 SRC_URI:append = " \

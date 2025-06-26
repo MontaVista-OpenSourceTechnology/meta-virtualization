@@ -20,8 +20,6 @@ SRC_URI = "\
         git://git.yoctoproject.org/yocto-kernel-cache;branch=yocto-${LINUX_VERSION} \
         "
 
-S = "${WORKDIR}/git"
-
 do_install() {
     install -d ${D}${base_prefix}/kcfg
 

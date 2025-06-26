@@ -12,8 +12,6 @@ SRC_URI = "git://${PKG_NAME}.git;branch=main;protocol=https"
 SRCREV = "27ecc97192df1bf053a22b04463f2b51b8b8373e"
 PV = "1.1.0+git"
 
-S = "${WORKDIR}/git"
-
 inherit meta-virt-depreciated-warning
 
 do_install() {

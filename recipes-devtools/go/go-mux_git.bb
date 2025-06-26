@@ -13,8 +13,6 @@ SRCREV = "85123bf20e069b156415b871dea10517f6a8938a"
 
 inherit meta-virt-depreciated-warning
 
-S = "${WORKDIR}/git"
-
 do_configure[noexec] = "1"
 do_compile[noexec] = "1"
 

@@ -14,8 +14,6 @@ PV = "4+git"
 
 RDEPENDS:${PN} += "bash"
 
-S = "${WORKDIR}/git"
-
 inherit meta-virt-depreciated-warning
 
 do_install() {

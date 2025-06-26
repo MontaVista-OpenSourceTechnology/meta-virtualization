@@ -14,8 +14,6 @@ PV = "0.0+git"
 
 inherit meta-virt-depreciated-warning
 
-S = "${WORKDIR}/git"
-
 do_install() {
 	install -d ${D}${prefix}/local/go/src/${PKG_NAME}
 	cp -r ${S}/* ${D}${prefix}/local/go/src/${PKG_NAME}/

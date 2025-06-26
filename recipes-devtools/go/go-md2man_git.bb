@@ -14,8 +14,6 @@ SRC_URI = "git://${GO_IMPORT}.git;branch=master;protocol=https;destsuffix=${GO_S
 SRCREV = "f79a8a8ca69da163eee19ab442bedad7a35bba5a"
 PV = "1.0.10+git"
 
-S = "${WORKDIR}/git"
-
 inherit go
 
 do_compile:prepend() {

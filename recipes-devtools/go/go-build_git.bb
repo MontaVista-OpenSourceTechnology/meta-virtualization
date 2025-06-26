@@ -8,7 +8,7 @@ SRCREV_runc = "1e7bb5b773162b57333d57f612fd72e3f8612d94"
 SRCREV_FORMAT = "runx_runc"
 SRC_URI = "\
 	  git://github.com/lf-edge/runx;nobranch=1;name=runx;protocol=https;destsuffix=${GO_SRCURI_DESTSUFFIX} \
-          git://github.com/opencontainers/runc;branch=release-1.1;name=runc;protocol=https;destsuffix=git/src/import/gobuild/go/src/github.com/opencontainers/runc \
+          git://github.com/opencontainers/runc;branch=release-1.1;name=runc;protocol=https;destsuffix=${BB_GIT_DEFAULT_DESTSUFFIX}/src/import/gobuild/go/src/github.com/opencontainers/runc \
           file://0001-build-use-instead-of-go.patch \
 	  "
 SRC_URI[md5sum] = "0d701ac1e2a67d47ce7127432df2c32b"
@@ -17,7 +17,6 @@ SRC_URI[sha256sum] = "5a26478906d5005f4f809402e981518d2b8844949199f60c4b6e1f986c
 LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://src/import/LICENSE;md5=945fc9aa694796a6337395cc291ddd8c"
 
-S = "${WORKDIR}/git"
 PV = "0.1-git${SRCREV_runx}"
 
 inherit features_check

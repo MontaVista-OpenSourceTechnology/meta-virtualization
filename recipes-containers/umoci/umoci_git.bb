@@ -6,11 +6,11 @@ LIC_FILES_CHKSUM = "file://COPYING;md5=3b83ef96387f14655fc854ddc3c6bd57"
 RDEPENDS:${PN} = "skopeo"
 RDEPENDS:${PN}:class-native = ""
 
-SRCREV_umoci = "8f807a317985f23f90f0d1dd75f5f6de34e0c263"
+SRCREV_umoci = "8a7f7894daa4ffe1e69461967b666ee62295321e"
 SRC_URI = "git://github.com/opencontainers/umoci.git;branch=main;name=umoci;destsuffix=github.com/opencontainers/umoci;protocol=https \
           "
 
-PV = "v0.4.7+git"
+PV = "v0.5.0+git"
 S = "${UNPACKDIR}/github.com/opencontainers/umoci"
 GO_IMPORT = "github.com/opencontainers/umoci"
 

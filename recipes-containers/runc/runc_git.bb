@@ -10,6 +10,7 @@ RUNC_VERSION = "1.2.0"
 # for compatibility with existing RDEPENDS that have existed since
 # runc-docker and runc-opencontainers were separate
 RPROVIDES:${PN} += "runc-docker"
+RPROVIDES:${PN} += "runc-opencontainers"
 
 CVE_PRODUCT = "runc"
 

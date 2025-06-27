@@ -1,6 +1,6 @@
 include runc.inc
 
-SRCREV = "25d476443207db333bcc6dd076db7cd3a9eea1d7"
+SRCREV = "b1722d790214952e8a20d4ddd6a83451b9b665a1"
 SRC_URI = " \
     git://github.com/opencontainers/runc;branch=main;protocol=https;destsuffix=${GO_SRCURI_DESTSUFFIX} \
     file://0001-Makefile-respect-GOBUILDFLAGS-for-runc-and-remove-re.patch \

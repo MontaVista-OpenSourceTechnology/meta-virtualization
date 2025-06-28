@@ -20,7 +20,7 @@ INSANE_SKIP:${PN}-dbg += "buildpaths"
 
 SRC_URI += "http://libvirt.org/sources/python/${BPN}-python-${LIBVIRT_VERSION}.tar.gz;name=libvirt_python;subdir=${BP}"
 
-SRC_URI[libvirt_python.sha256sum] = "00efb9a781087668512d6a002eb9cd136e44ff8701ac6793cc13b6fdc6d9ef8f"
+SRC_URI[libvirt_python.sha256sum] = "7335de498e3fdb2c96f68ee4065d44ab0404b79923d6316819a4b5f963f80125"
 
 export LIBVIRT_API_PATH = "${S}/docs/libvirt-api.xml"
 export LIBVIRT_CFLAGS = "-I${S}/include"

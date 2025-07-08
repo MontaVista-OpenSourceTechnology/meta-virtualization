@@ -8,13 +8,12 @@ require xvisor-configs.inc
 
 inherit autotools-brokensep
 
-PV = "0.3.0+git"
+PV = "0.3.2+git"
 
 # This version support the RISC-V v0.5.0 Hypervisor extensions
-SRCREV = "6b23764a1439f9d08b2ed2f363da522460d8a22b"
-SRC_URI = "git://github.com/avpatel/xvisor-next.git;branch=master;protocol=https \
+SRCREV = "355c79a07d9c1b783962ebf47b9b18194b7d40bd"
+SRC_URI = "git://github.com/xvisor/xvisor.git;branch=master;protocol=https \
     file://0001-TESTS-Don-t-specify-mabi-or-march-for-RISC-V.patch \
-    file://0001-build-use-usr-bin-env-for-python-scripts.patch \
 "
 
 EXTRA_OEMAKE += "ARCH=\"${@map_xvisor_arch(d.getVar('TARGET_ARCH'), d)}\" I=${D}"
@@ -52,4 +51,8 @@ INHIBIT_PACKAGE_STRIP = "1"
 
 # ERROR: xvisor-git-r0 do_package_qa: QA Issue: File /vmm.elf in package xvisor doesn't have GNU_HASH (didn't pass LDFLAGS?) [ldflags]
 # ERROR: xvisor-git-r0 do_package_qa: QA Issue: xvisor: ELF binary /vmm.elf has relocations in .text [textrel]
-INSANE_SKIP:${PN} += "ldflags textrel"
+# ERROR: xvisor-0.3.2+git-r0 do_package_qa: QA Issue: File /vmm.elf in package xvisor contains reference to TMPDIR [buildpaths]
+# ERROR: xvisor-0.3.2+git-r0 do_package_qa: QA Issue: File /vmm.bin in package xvisor contains reference to TMPDIR [buildpaths]
+# ERROR: xvisor-0.3.2+git-r0 do_package_qa: QA Issue: File /.debug/vmm.elf in package xvisor-dbg contains reference to TMPDIR [buildpaths]
+INSANE_SKIP:${PN} += "buildpaths ldflags textrel"
+INSANE_SKIP:${PN}-dbg += "buildpaths"

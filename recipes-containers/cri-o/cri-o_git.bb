@@ -20,6 +20,7 @@ SRC_URI = "\
 	file://0001-Makefile-force-symlinks.patch \
         file://crio.conf \
         file://0001-Use-securejoin.SecureJoin-when-forming-userns-paths.patch;patchdir=src/import/vendor/github.com/containers/storage \
+        file://CVE-2023-6476.patch;patchdir=src/import \
 	"
 
 # Apache-2.0 for docker

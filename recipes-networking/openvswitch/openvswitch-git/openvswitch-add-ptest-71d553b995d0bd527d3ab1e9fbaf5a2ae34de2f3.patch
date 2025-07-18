@@ -86,7 +86,7 @@ index 0000000..0b4587c
 +	install $(srcdir)/utilities/ovs-pki.in $(TEST_DEST)/utilities ;\
 +	for p in $$list ; do \
 +	  echo $$p ;\
-+	  p=$${p#../git/} ;\
++	  p=$${p#../sources/openvswitch*/} ;\
 +	  pre=$${p#tests\/} ;\
 +	  if test $$pre != $$p ; then \
 +	    echo installing $$p to $(TEST_DEST)/tests/$$pre ;\

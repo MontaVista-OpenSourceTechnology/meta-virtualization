@@ -34,59 +34,18 @@ import os
 import types
 
 from wic import WicError
-import wic.pluginbase
-from importlib.machinery import SourceFileLoader
 from wic.misc import (exec_cmd, get_bitbake_var)
+from wic.plugins.source.bootimg_pcbios import BootimgPcbiosPlugin
 
 logger = logging.getLogger('wic')
 
-class BootimgBiosXenPlugin(wic.pluginbase.SourcePlugin):
+class BootimgBiosXenPlugin(BootimgPcbiosPlugin):
     """
     Create MBR boot partition including files for Xen
 
     """
 
     name = 'bootimg_biosxen'
-    __PCBIOS_MODULE_NAME = "bootimg_pcbios"
-    __imgBiosObj = None
-
-    @classmethod
-    def __init__(cls):
-        """
-        Constructor (init)
-        """
-        # original comment from bootimg-biosplusefi.py :
-        # "XXX For some reasons, __init__ constructor is never called.
-        #  Something to do with how pluginbase works?"
-        cls.__instanciateBIOSClass()
-
-    @classmethod
-    def __instanciateBIOSClass(cls):
-        """
-
-        """
-        # Import bootimg-pcbios (class name "BootimgPcbiosPlugin")
-        modulePath = os.path.join(os.path.dirname(wic.pluginbase.__file__),
-                                  "plugins", "source",
-                                  cls.__PCBIOS_MODULE_NAME + ".py")
-        loader = SourceFileLoader(cls.__PCBIOS_MODULE_NAME, modulePath)
-        mod = types.ModuleType(loader.name)
-        loader.exec_module(mod)
-        cls.__imgBiosObj = mod.BootimgPcbiosPlugin()
-
-    @classmethod
-    def do_install_disk(cls, disk, disk_name, creator, workdir, oe_builddir,
-                        bootimg_dir, kernel_dir, native_sysroot):
-        """
-        Called after all partitions have been prepared and assembled into a
-        disk image.
-        """
-        if not cls.__imgBiosObj:
-            cls.__instanciateBIOSClass()
-
-        cls.__imgBiosObj.do_install_disk(disk, disk_name, creator, workdir,
-                                         oe_builddir, bootimg_dir, kernel_dir,
-                                         native_sysroot)
 
     @classmethod
     def do_configure_partition(cls, part, source_params, creator, cr_workdir,
@@ -95,9 +54,6 @@ class BootimgBiosXenPlugin(wic.pluginbase.SourcePlugin):
         """
         Called before do_prepare_partition(), creates syslinux config
         """
-        if not cls.__imgBiosObj:
-            cls.__instanciateBIOSClass()
-
         bootloader = creator.ks.bootloader
 
         if not bootloader.configfile:
@@ -158,10 +114,10 @@ class BootimgBiosXenPlugin(wic.pluginbase.SourcePlugin):
             cfg.close()
 
         else:
-            cls.__imgBiosObj.do_configure_partition(part, source_params,
-                                                    creator, cr_workdir,
-                                                    oe_builddir, bootimg_dir,
-                                                    kernel_dir, native_sysroot)
+            super().do_configure_partition(part, source_params,
+                                           creator, cr_workdir,
+                                           oe_builddir, bootimg_dir,
+                                           kernel_dir, native_sysroot)
 
     @classmethod
     def do_prepare_partition(cls, part, source_params, creator, cr_workdir,
@@ -171,10 +127,7 @@ class BootimgBiosXenPlugin(wic.pluginbase.SourcePlugin):
         Called to do the actual content population for a partition i.e. it
         'prepares' the partition to be incorporated into the image.
         """
-        if not cls.__imgBiosObj:
-            cls.__instanciateBIOSClass()
-
-        bootimg_dir = cls.__imgBiosObj._get_bootimg_dir(bootimg_dir, 'syslinux')
+        bootimg_dir = super()._get_bootimg_dir(bootimg_dir, 'syslinux')
         hdddir = "%s/hdd/boot" % cr_workdir
 
         # machine-deduction logic originally from isoimage-isohybrid.py
@@ -205,8 +158,8 @@ class BootimgBiosXenPlugin(wic.pluginbase.SourcePlugin):
         for install_cmd in cmds:
             exec_cmd(install_cmd)
 
-        cls.__imgBiosObj.do_prepare_partition(part, source_params,
-                                              creator, cr_workdir,
-                                              oe_builddir, bootimg_dir,
-                                              kernel_dir, rootfs_dir,
-                                              native_sysroot)
+        super().do_prepare_partition(part, source_params,
+                                     creator, cr_workdir,
+                                     oe_builddir, bootimg_dir,
+                                     kernel_dir, rootfs_dir,
+                                     native_sysroot)

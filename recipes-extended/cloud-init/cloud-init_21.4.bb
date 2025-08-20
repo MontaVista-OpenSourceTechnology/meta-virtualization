@@ -10,6 +10,7 @@ SRC_URI = "git://github.com/canonical/cloud-init;branch=main;protocol=https \
     file://0001-setup.py-check-for-install-anywhere-in-args.patch \
     file://0001-setup.py-respect-udevdir-variable.patch \
     file://CVE-2023-1786.patch \
+    file://CVE-2024-6174.patch \
 "
 
 S = "${WORKDIR}/git"

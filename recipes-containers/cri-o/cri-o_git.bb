@@ -14,7 +14,7 @@ At a high level, we expect the scope of cri-o to be restricted to the following 
  - Resource isolation as required by the CRI \
  "
 
-SRCREV_cri-o = "87ce1c120d022797913f0792e15dd0107d19dffe"
+SRCREV_cri-o = "259e23fd4353e67b59b33a0457202210f40322ec"
 SRC_URI = "\
 	git://github.com/kubernetes-sigs/cri-o.git;branch=release-1.34;name=cri-o;protocol=https;destsuffix=${GO_SRCURI_DESTSUFFIX} \
         file://crio.conf \

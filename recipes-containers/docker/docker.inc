@@ -10,7 +10,6 @@ RDEPENDS:${PN} = "util-linux util-linux-unshare iptables \
                   ${@bb.utils.contains('DISTRO_FEATURES', 'aufs', 'aufs-util', '', d)} \
                   ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', '', 'cgroup-lite', d)} \
                   bridge-utils \
-                  ca-certificates \
                  "
 RDEPENDS:${PN} += "virtual-containerd ${VIRTUAL-RUNTIME_container_runtime}"
 
@@ -37,10 +36,11 @@ RPROVIDES:${PN}-dev += "docker-dev"
 RPROVIDES:${PN}-contrip += "docker-dev"
 
 inherit pkgconfig
-PACKAGECONFIG ??= "docker-init seccomp"
+PACKAGECONFIG ??= "docker-init seccomp ca-certs"
 PACKAGECONFIG[seccomp] = "seccomp,,libseccomp"
 PACKAGECONFIG[docker-init] = ",,,docker-init"
 PACKAGECONFIG[transient-config] = "transient-config"
+PACKAGECONFIG[ca-certs] = ",,,ca-certificates"
 
 GO_IMPORT = "import"
 

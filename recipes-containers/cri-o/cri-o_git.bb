@@ -1,4 +1,4 @@
-HOMEPAGE = "https://github.com/kubernetes-sigs/cri-o"
+HOMEPAGE = "https://github.com/cri-o/cri-o"
 SUMMARY = "Open Container Initiative-based implementation of Kubernetes Container Runtime Interface"
 DESCRIPTION = "cri-o is meant to provide an integration path between OCI conformant \
 runtimes and the kubelet. Specifically, it implements the Kubelet Container Runtime \
@@ -16,7 +16,7 @@ At a high level, we expect the scope of cri-o to be restricted to the following 
 
 SRCREV_cri-o = "259e23fd4353e67b59b33a0457202210f40322ec"
 SRC_URI = "\
-	git://github.com/kubernetes-sigs/cri-o.git;branch=release-1.34;name=cri-o;protocol=https;destsuffix=${GO_SRCURI_DESTSUFFIX} \
+	git://github.com/cri-o/cri-o.git;branch=release-1.34;name=cri-o;protocol=https;destsuffix=${GO_SRCURI_DESTSUFFIX} \
         file://crio.conf \
         file://run-ptest \
 	"

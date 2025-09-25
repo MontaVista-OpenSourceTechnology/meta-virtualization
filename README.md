@@ -1,8 +1,12 @@
 meta-virtualization
 ===================
 
-This layer provides support for building Xen, KVM, Libvirt, and associated
-packages necessary for constructing OE-based virtualized solutions.
+The meta-virtualization layer is the authoritative resource for virtualization
+technologies in OpenEmbedded / Yocto built distributions.  It provides support
+or both hypervisor-based virtualization (such as KVM, Xen, and QEMU) and
+system-level virtualization (Linux containers), along with the host and guest
+technologies required to build complete solutions ranging from embedded systems
+to full deep CNCF stack deployments.
 
 The bbappend files for some recipes (e.g. linux-yocto) in this layer need to
 have 'virtualization' in DISTRO_FEATURES to have effect. To enable them, add

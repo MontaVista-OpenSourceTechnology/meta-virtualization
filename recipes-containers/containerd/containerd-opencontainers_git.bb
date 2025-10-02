@@ -9,6 +9,7 @@ SRCREV = "1e1ea6e986c6c86565bc33d52e34b81b3e2bc71f"
 SRC_URI = "git://github.com/containerd/containerd;branch=release/1.6;protocol=https;destsuffix=git/src/github.com/containerd/containerd \
            file://0001-Makefile-allow-GO_BUILD_FLAGS-to-be-externally-speci.patch \
            file://0001-build-don-t-use-gcflags-to-define-trimpath.patch \
+           file://CVE-2024-40635.patch \
           "
 
 # Apache-2.0 for containerd

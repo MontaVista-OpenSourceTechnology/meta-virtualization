@@ -22,6 +22,7 @@ SRC_URI = " \
     ${@bb.utils.contains('PACKAGECONFIG', 'rootless', 'file://50-podman-rootless.conf', '', d)} \
     file://run-ptest \
     file://CVE-2025-6032.patch;patchdir=src/import \
+    file://CVE-2025-9566.patch;patchdir=src/import \
 "
 
 LICENSE = "Apache-2.0"

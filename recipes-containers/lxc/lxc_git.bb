@@ -49,8 +49,8 @@ SRC_URI = "git://github.com/lxc/lxc.git;branch=stable-6.0;protocol=https \
 	file://lxc-net \
 	"
 
-SRCREV = "b185e523fc43538b7f9cc5aba2db230e112c6bc4"
-PV = "v6.0.4"
+SRCREV = "9e4e69ed1cb93159b0da99dad8d320b795887d07"
+PV = "v6.0.5"
 
 # Let's not configure for the host distro.
 #

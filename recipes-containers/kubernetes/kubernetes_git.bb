@@ -38,6 +38,7 @@ SRC_URI:append = " \
            file://CVE-2024-3177.patch;patchdir=src/import \
            file://CVE-2023-3955.patch;patchdir=src/import \
            file://CVE-2023-3676.patch;patchdir=src/import \
+           file://CVE-2025-5187.patch;patchdir=src/import \
           "
 
 DEPENDS += "rsync-native \

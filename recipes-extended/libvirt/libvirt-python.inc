@@ -18,8 +18,8 @@ FILES:${PN}-python = "${bindir}/* ${libdir}/* ${libdir}/${PYTHON_DIR}/*"
 # Currently the libvirt-python debug libraries contain buildpaths
 INSANE_SKIP:${PN}-dbg += "buildpaths"
 
-SRC_URI += "http://libvirt.org/sources/python/${BPN}_python-${LIBVIRT_VERSION}.tar.gz;name=libvirt_python;subdir=${BP}"
-
+SRC_URI += "http://libvirt.org/sources/python/${LIBVIRT_PYTHON_ARCHIVE_NAME}.tar.gz;name=libvirt_python;subdir=${BP}"
+LIBVIRT_PYTHON_ARCHIVE_NAME = "${BPN}_python-${LIBVIRT_VERSION}"
 SRC_URI[libvirt_python.sha256sum] = "5d80e13e0cfb96dd254d765ee60e77e5f9b6925172540056cec0aa0e6f0ca83c"
 
 export LIBVIRT_API_PATH = "${S}/docs/libvirt-api.xml"
@@ -46,8 +46,12 @@ do_compile:append() {
 		# the syroot staged pkgconfig entries. So we clear the sysroot
 		# for just this portion.
 		export PKG_CONFIG_SYSROOT_DIR=
-		cd ${UNPACKDIR}/${BP}/${BPN}-python-${LIBVIRT_VERSION} && \
-		  ${STAGING_BINDIR_NATIVE}/python3-native/python3 setup.py build
+		src=${UNPACKDIR}/${BP}/${LIBVIRT_PYTHON_ARCHIVE_NAME}
+		if [ ! -d $src ]; then
+			bbfatal "Python source not found at expected location \"$src\". Please check that this task logic and SRC_URI are consistent."
+		fi
+		cd $src
+		${STAGING_BINDIR_NATIVE}/python3-native/python3 setup.py build
 		cd -
 	fi
 }
@@ -58,9 +62,13 @@ do_install:append() {
 		# the syroot staged pkgconfig entries. So we clear the sysroot
 		# for just this portion.
 		export PKG_CONFIG_SYSROOT_DIR=
-		cd ${UNPACKDIR}/${BP}/${BPN}-python-${LIBVIRT_VERSION} && \
-		  ${STAGING_BINDIR_NATIVE}/python3-native/python3 setup.py install \
-                       --install-lib=${D}/${PYTHON_SITEPACKAGES_DIR} ${LIBVIRT_INSTALL_ARGS}
+		src=${UNPACKDIR}/${BP}/${LIBVIRT_PYTHON_ARCHIVE_NAME}
+		if [ ! -d $src ]; then
+			bbfatal "Python source not found at expected location \"$src\". Please check that this task logic and SRC_URI are consistent."
+		fi
+		cd $src
+		${STAGING_BINDIR_NATIVE}/python3-native/python3 setup.py install \
+			--install-lib=${D}/${PYTHON_SITEPACKAGES_DIR} ${LIBVIRT_INSTALL_ARGS}
 		cd -
 	fi
 }

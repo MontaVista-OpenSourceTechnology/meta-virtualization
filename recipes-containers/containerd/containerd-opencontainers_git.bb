@@ -10,6 +10,7 @@ SRC_URI = "git://github.com/containerd/containerd;branch=release/1.6;protocol=ht
            file://0001-Makefile-allow-GO_BUILD_FLAGS-to-be-externally-speci.patch \
            file://0001-build-don-t-use-gcflags-to-define-trimpath.patch \
            file://CVE-2024-40635.patch \
+           file://CVE-2024-25621.patch \
           "
 
 # Apache-2.0 for containerd

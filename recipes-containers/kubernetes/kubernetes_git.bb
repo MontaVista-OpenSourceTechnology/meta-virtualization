@@ -20,8 +20,9 @@ SRC_URI = "git://github.com/kubernetes/kubernetes.git;branch=release-1.17;name=k
            file://CVE-2023-2727-CVE-2023-2728.patch \
            file://CVE-2022-3294.patch \
            file://CVE-2025-5187.patch \
+           file://CVE-2024-10220.patch \
           "
-PR .= ".3"
+PR .= ".4"
 DEPENDS += "rsync-native \
             coreutils-native \
            "

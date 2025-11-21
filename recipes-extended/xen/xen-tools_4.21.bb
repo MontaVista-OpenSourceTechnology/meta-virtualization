@@ -8,6 +8,7 @@ SRC_URI = " \
     file://0001-python-pygrub-pass-DISTUTILS-xen-4.19.patch \
     file://0001-libxl_nocpuid-fix-build-error.patch \
     file://0001-tools-libxl-Fix-build-with-NOCPUID-and-json-c.patch \
+    file://0001-tests-vpci-drop-explicit-g-use.patch \
     "
 
 LIC_FILES_CHKSUM ?= "file://COPYING;md5=d1a1e216f80b6d8da95fec897d0dbec9"

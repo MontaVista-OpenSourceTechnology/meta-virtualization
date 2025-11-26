@@ -15,7 +15,9 @@ DEPENDS = "bridge-utils gnutls libxml2 lvm2 avahi parted curl libpcap util-linux
 #
 RDEPENDS:${PN} = "gettext-runtime"
 
-RDEPENDS:libvirt-libvirtd += "bridge-utils iptables pm-utils dnsmasq netcat-openbsd ebtables"
+RDEPENDS:libvirt-libvirtd += "bridge-utils pm-utils dnsmasq netcat-openbsd ebtables \
+                              ${@bb.utils.contains('PACKAGECONFIG', 'nftables', 'nftables iproute2-tc', 'iptables', d)} \
+                              "
 RDEPENDS:libvirt-libvirtd:append:x86-64 = " dmidecode"
 RDEPENDS:libvirt-libvirtd:append:x86 = " dmidecode"
 RDEPENDS:libvirt-libvirtd:append:arm = " dmidecode"
@@ -175,6 +177,7 @@ PACKAGECONFIG[apparmor_profiles] = "-Dapparmor_profiles=enabled, -Dapparmor_prof
 PACKAGECONFIG[firewalld] = "-Dfirewalld=enabled, -Dfirewalld=disabled,"
 PACKAGECONFIG[libpcap] = "-Dlibpcap=enabled, -Dlibpcap=disabled,libpcap,libpcap"
 PACKAGECONFIG[numad] = "-Dnumad=enabled, -Dnumad=disabled,"
+PACKAGECONFIG[nftables] = ""
 
 # Enable the Python tool support
 require libvirt-python.inc
@@ -313,6 +316,7 @@ do_install:append() {
 
 EXTRA_OEMESON += " \
     -Dinit_script=${@bb.utils.contains('DISTRO_FEATURES','systemd','systemd','none', d)} \
+    -Dfirewall_backend_priority=${@bb.utils.contains('PACKAGECONFIG','nftables','nftables,iptables','iptables,nftables', d)} \
     -Drunstatedir=/run \
     -Dtests=enabled \
     "

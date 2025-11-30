@@ -45,6 +45,7 @@ SRC_URI = "git://github.com/lxc/lxc.git;branch=stable-6.0;protocol=https \
 	file://0001-download-don-t-try-compatbility-index.patch \
 	file://tests-our-init-is-not-busybox.patch \
 	file://0001-template-if-busybox-contains-init-use-it-in-containe.patch \
+	file://0001-build-Check-if-P_PIDFD-is-defined.patch \
 	file://dnsmasq.conf \
 	file://lxc-net \
 	"

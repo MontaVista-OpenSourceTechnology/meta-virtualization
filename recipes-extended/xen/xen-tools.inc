@@ -735,6 +735,8 @@ FILES:${PN}-test += "\
     ${libdir}/xen/tests/test_vpci \
     ${libdir}/xen/tests/test-pdx-offset \
     ${libdir}/xen/tests/test-pdx-mask \
+    ${libdir}/xen/tests/test-cpu-policy \
+    ${libdir}/xen/tests/test-tsx \
     "
 
 # test-xenstore and test-resource currently only exist in 4.16
@@ -829,6 +831,9 @@ do_install() {
         ${localstatedir}/lock/subsys \
         ${localstatedir}/lib/xen \
         "
+
+    # a host tool that is unused
+    rm -rf ${D}${libdir}/xen/tests/test_x86_emulator
 
     # install volatiles using populate_volatiles mechanism
     install -d ${D}${sysconfdir}/default/volatiles

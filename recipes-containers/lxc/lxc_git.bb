@@ -141,7 +141,7 @@ do_install:append() {
 
 	if "${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}"; then
 	    # nothing special for systemd at the moment
-	    true
+	    (cd ${D}${localstatedir}; [ -d lib/lxc ] && rmdir -v --parents lib/lxc)
 	else
 	    # with meson, these aren't built unless sysvinit is the enabled
 	    # init system.

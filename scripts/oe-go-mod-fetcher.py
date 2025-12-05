@@ -1067,7 +1067,11 @@ def verify_commit_accessible(vcs_url: str, commit: str, ref_hint: str = "", vers
                 if ref_hint.startswith('refs/tags/'):
                     try:
                         # First check if tag has moved using fast ls-remote (cached)
-                        current_tag_commit = git_ls_remote(vcs_url, ref_hint)
+                        # FIX #37: Use dereferenced tag (^{}) to get the actual commit hash
+                        # For annotated tags, ref_hint returns the tag object hash, not the commit
+                        # Example: refs/tags/v1.0.1 -> c49ff274 (tag object)
+                        #          refs/tags/v1.0.1^{} -> 37c8de36 (actual commit)
+                        current_tag_commit = git_ls_remote(vcs_url, f"{ref_hint}^{{}}")
 
                         if current_tag_commit and current_tag_commit != actual_commit:
                             # Tag has moved - fetch it to verify and update local repo
@@ -4297,6 +4301,18 @@ def load_discovered_modules(discovered_modules_path: Path) -> Optional[List[Dict
                     failed += 1
 
             print(f"  Expanded {expanded} short hashes, {failed} failed                    ")
+
+        # Filter out modules with empty vcs_hash - these are typically pre-Go 1.18
+        # modules lacking Origin metadata (e.g. pre-release pseudo-versions) that
+        # cannot be fetched from git. They are usually transitive dependencies that
+        # aren't actually needed by the build.
+        empty_hash_modules = [m for m in modules if not m.get('vcs_hash')]
+        if empty_hash_modules:
+            print(f"\n⚠️  Filtering out {len(empty_hash_modules)} modules with empty vcs_hash:")
+            for m in empty_hash_modules:
+                print(f"   - {m['module_path']}@{m['version']}")
+            modules = [m for m in modules if m.get('vcs_hash')]
+            print(f"  Remaining modules: {len(modules)}")
 
         return modules
 

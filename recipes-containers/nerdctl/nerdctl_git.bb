@@ -9,18 +9,17 @@ DEPENDS = " \
     ${@bb.utils.filter('DISTRO_FEATURES', 'systemd', d)} \
 "
 
-# Specify the first two important SRCREVs as the format
-SRCREV_FORMAT = "nerdcli_cgroups"
+SRCREV_FORMAT = "nerdcli"
 SRCREV_nerdcli = "497c7cf74d09bf1ddf2678382360ca61e6faebac"
 
 SRC_URI = "git://github.com/containerd/nerdctl.git;name=nerdcli;branch=main;protocol=https;destsuffix=${GO_SRCURI_DESTSUFFIX}"
 
-include src_uri.inc
+include go-mod-git.inc
+include go-mod-cache.inc
 
-# patches and config
+# patches
 SRC_URI += " \
             file://0001-Makefile-allow-external-specification-of-build-setti.patch \
-            file://modules.txt \
            "
 
 LICENSE = "Apache-2.0"
@@ -32,8 +31,14 @@ PV = "v2.0.3"
 
 NERDCTL_PKG = "github.com/containerd/nerdctl"
 
+# go-mod-discovery configuration
+GO_MOD_DISCOVERY_BUILD_TARGET = "./cmd/nerdctl"
+GO_MOD_DISCOVERY_GIT_REPO = "https://github.com/containerd/nerdctl.git"
+GO_MOD_DISCOVERY_GIT_REF = "${SRCREV_nerdcli}"
+
 inherit go goarch
 inherit systemd pkgconfig
+inherit go-mod-discovery
 
 do_configure[noexec] = "1"
 
@@ -45,32 +50,24 @@ EXTRA_OEMAKE = " \
 
 PACKAGECONFIG ?= ""
 
-# sets the "sites" variable.
-include relocation.inc
-
-PIEFLAG = "${@bb.utils.contains('GOBUILDFLAGS', '-buildmode=pie', '-buildmode=pie', '', d)}"
-
 do_compile() {
+        export GOPATH="${S}/src/import/.gopath:${S}/src/import/vendor:${STAGING_DIR_TARGET}/${prefix}/local/go"
+        export GOMODCACHE="${S}/pkg/mod"
+        export CGO_ENABLED="1"
+        export GOSUMDB="off"
+        export GOTOOLCHAIN="local"
+        export GOPROXY="off"
 
-    	cd ${S}/src/import
+        cd ${S}/src/import
 
-	export GOPATH="$GOPATH:${S}/src/import/.gopath"
+        # Pass the needed cflags/ldflags so that cgo
+        # can find the needed headers files and libraries
+        export GOARCH=${TARGET_GOARCH}
+        export CGO_CFLAGS="${CFLAGS} --sysroot=${STAGING_DIR_TARGET}"
+        export CGO_LDFLAGS="${LDFLAGS} --sysroot=${STAGING_DIR_TARGET}"
 
-	# Pass the needed cflags/ldflags so that cgo
-	# can find the needed headers files and libraries
-	export GOARCH=${TARGET_GOARCH}
-	export CGO_ENABLED="1"
-	export CGO_CFLAGS="${CFLAGS} --sysroot=${STAGING_DIR_TARGET}"
-	export CGO_LDFLAGS="${LDFLAGS} --sysroot=${STAGING_DIR_TARGET}"
-
-	export GOFLAGS="-mod=vendor -trimpath ${PIEFLAG}"
-
-	# our copied .go files are to be used for the build
-	ln -sf vendor.copy vendor
-	# inform go that we know what we are doing
-	cp ${UNPACKDIR}/modules.txt vendor/
-
-	oe_runmake GO=${GO} BUILDTAGS="${BUILDTAGS}" binaries
+        # -trimpath removes build paths from the binary (required for reproducible builds)
+        oe_runmake GO=${GO} BUILDTAGS="${BUILDTAGS}" GO_BUILD_FLAGS="-trimpath" binaries
 }
 
 do_install() {

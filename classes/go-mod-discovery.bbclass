@@ -184,9 +184,20 @@ Hint: Set GO_MOD_DISCOVERY_SRCDIR to the directory containing go.mod"
     echo "LDFLAGS:       ${GO_MOD_DISCOVERY_LDFLAGS}"
     echo ""
 
+    # Restore original go.sum from git if it was modified by do_create_module_cache
+    # The build task rewrites go.sum with git-based checksums, but discovery needs
+    # the original proxy-based checksums to download from proxy.golang.org
+    if git -C "${GO_MOD_DISCOVERY_SRCDIR}" diff --quiet go.sum 2>/dev/null; then
+        echo "go.sum is clean"
+    else
+        echo "Restoring original go.sum from git (was modified by previous build)..."
+        git -C "${GO_MOD_DISCOVERY_SRCDIR}" checkout go.sum
+    fi
+
     # Use native go binary
     GO_NATIVE="${STAGING_DIR_NATIVE}${bindir_native}/go"
 
+    echo ""
     echo "Running: go build (to discover all modules)..."
 
     BUILD_CMD="${GO_NATIVE} build -v -trimpath"
@@ -341,9 +352,13 @@ Add to your recipe: GO_MOD_DISCOVERY_GIT_REPO = \"https://github.com/...\"
 Or run 'bitbake ${PN} -c show_upgrade_commands' to see manual options."
     fi
 
+    # CRITICAL: Change to source directory so oe-go-mod-fetcher.py can find go.mod/go.sum
+    cd "${GO_MOD_DISCOVERY_SRCDIR}"
+
     echo "======================================================================"
     echo "GENERATING RECIPE FILES: ${PN} ${PV}"
     echo "======================================================================"
+    echo "Source dir:   ${GO_MOD_DISCOVERY_SRCDIR}"
     echo "Modules JSON: ${GO_MOD_DISCOVERY_MODULES_JSON}"
     echo "Git repo:     ${GO_MOD_DISCOVERY_GIT_REPO}"
     echo "Git ref:      ${GO_MOD_DISCOVERY_GIT_REF}"

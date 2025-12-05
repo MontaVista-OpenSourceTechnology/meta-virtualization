@@ -797,6 +797,18 @@ python do_create_module_cache() {
     workdir = Path(d.getVar('WORKDIR'))
     modules_data = json.loads(d.getVar('GO_MODULE_CACHE_DATA'))
 
+    # Remove go.sum files from git-fetched dependencies to prevent checksum conflicts
+    # The module checksums from git sources differ from the proxy checksums, and stale
+    # go.sum files in dependencies can cause "checksum mismatch" errors during build
+    vcs_cache_dir = workdir / "sources" / "vcs_cache"
+    if vcs_cache_dir.exists():
+        import subprocess
+        result = subprocess.run(
+            ['find', str(vcs_cache_dir), '-name', 'go.sum', '-delete'],
+            capture_output=True, text=True
+        )
+        bb.debug(1, "Removed go.sum files from vcs_cache to prevent checksum conflicts")
+
     bb.note(f"Building module cache for {len(modules_data)} modules")
 
     # Track results from processing

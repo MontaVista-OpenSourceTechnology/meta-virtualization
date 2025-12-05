@@ -6,15 +6,31 @@
 
 # go-mod-discovery.bbclass
 #
-# Provides a do_discover_modules task for Go projects that downloads complete
-# module metadata from proxy.golang.org for use with the bootstrap strategy.
+# Provides tasks for Go module discovery and recipe generation.
 #
-# USAGE:
-#   1. Add to recipe: inherit go-mod-discovery
-#   2. Set required variables (see CONFIGURATION below)
-#   3. Run discovery: bitbake <recipe> -c discover_modules
-#      (This automatically: downloads modules, extracts metadata, regenerates recipe)
-#   4. Build normally: bitbake <recipe>
+# AVAILABLE TASKS:
+#
+#   bitbake <recipe> -c discover_modules
+#       Build project and download modules from proxy.golang.org
+#       This populates the discovery cache but does NOT extract or generate
+#
+#   bitbake <recipe> -c extract_modules
+#       Extract module metadata from discovery cache to modules.json
+#       Requires: discover_modules to have been run first
+#
+#   bitbake <recipe> -c generate_modules
+#       Generate go-mod-git.inc and go-mod-cache.inc from modules.json
+#       Requires: extract_modules to have been run first
+#
+#   bitbake <recipe> -c discover_and_generate
+#       Run all three steps: discover -> extract -> generate
+#       This is the "do everything" convenience task
+#
+#   bitbake <recipe> -c show_upgrade_commands
+#       Show copy-pasteable command lines without running anything
+#
+#   bitbake <recipe> -c clean_discovery
+#       Remove the persistent discovery cache
 #
 # CONFIGURATION:
 #
@@ -48,15 +64,9 @@
 #   GO_MOD_DISCOVERY_MODULES_JSON - Output path for extracted module metadata
 #                                   Default: "${GO_MOD_DISCOVERY_DIR}/modules.json"
 #
-#   GO_MOD_DISCOVERY_SKIP_EXTRACT - Set to "1" to skip automatic extraction
-#                                   Default: "0" (extraction runs automatically)
-#
-#   GO_MOD_DISCOVERY_SKIP_GENERATE - Set to "1" to skip automatic recipe generation
-#                                    Default: "0" (generation runs automatically)
-#
 #   GO_MOD_DISCOVERY_GIT_REPO     - Git repository URL for recipe generation
 #                                   Example: "https://github.com/rancher/k3s.git"
-#                                   Required for automatic generation
+#                                   Required for generate_modules task
 #
 #   GO_MOD_DISCOVERY_GIT_REF      - Git ref (commit/tag) for recipe generation
 #                                   Default: "${SRCREV}" (uses recipe's SRCREV)
@@ -64,32 +74,22 @@
 #   GO_MOD_DISCOVERY_RECIPEDIR    - Output directory for generated .inc files
 #                                   Default: "${FILE_DIRNAME}" (recipe's directory)
 #
-# MINIMAL EXAMPLE (manual generation - no GIT_REPO set):
+# WORKFLOW EXAMPLES:
 #
-#   TAGS = "netcgo osusergo"
-#   GO_MOD_DISCOVERY_BUILD_TARGET = "./cmd/myapp"
-#   inherit go-mod-discovery
-#   # Run: bitbake myapp -c discover_modules
-#   # Then manually: oe-go-mod-fetcher.py --discovered-modules ... --git-repo ...
+# Full automatic (one command does everything):
+#   bitbake myapp -c discover_and_generate
 #
-# FULL AUTOMATIC EXAMPLE (all-in-one discovery + generation):
+# Step by step (useful for debugging or rerunning individual steps):
+#   bitbake myapp -c discover_modules    # Download modules
+#   bitbake myapp -c extract_modules     # Extract metadata
+#   bitbake myapp -c generate_modules    # Generate .inc files
 #
-#   TAGS = "netcgo osusergo"
-#   GO_MOD_DISCOVERY_BUILD_TARGET = "./cmd/myapp"
-#   GO_MOD_DISCOVERY_GIT_REPO = "https://github.com/example/myapp.git"
-#   inherit go-mod-discovery
-#   # Run: bitbake myapp -c discover_modules
-#   # Recipe files are automatically regenerated!
-#
-# See: meta-virtualization/scripts/BOOTSTRAP-STRATEGY.md (Approach B)
-#
-# This task is NOT part of the normal build - it must be explicitly invoked
-# via bitbake <recipe> -c discover_modules
+# Skip BitBake, use scripts directly (see show_upgrade_commands):
+#   bitbake myapp -c show_upgrade_commands
 #
 # PERSISTENT CACHE: The discovery cache is stored in ${TOPDIR}/go-mod-discovery/${PN}/${PV}/
-# instead of ${WORKDIR}. This ensures the cache survives `bitbake <recipe> -c cleanall`
-# since TOPDIR is the build directory root (e.g., /path/to/build/).
-# To clean the discovery cache, run: rm -rf ${TOPDIR}/go-mod-discovery/${PN}/${PV}/
+# This ensures the cache survives `bitbake <recipe> -c cleanall`.
+# To clean: bitbake <recipe> -c clean_discovery
 
 # Required variable (must be set by recipe)
 GO_MOD_DISCOVERY_BUILD_TARGET ?= ""
@@ -107,13 +107,7 @@ GO_MOD_DISCOVERY_DIR ?= "${TOPDIR}/go-mod-discovery/${PN}/${PV}"
 # Output JSON file for discovered modules (used by oe-go-mod-fetcher.py --discovered-modules)
 GO_MOD_DISCOVERY_MODULES_JSON ?= "${GO_MOD_DISCOVERY_DIR}/modules.json"
 
-# Set to "1" to skip automatic extraction (only download modules, don't extract metadata)
-GO_MOD_DISCOVERY_SKIP_EXTRACT ?= "0"
-
-# Set to "1" to skip automatic recipe regeneration (only discover and extract)
-GO_MOD_DISCOVERY_SKIP_GENERATE ?= "0"
-
-# Git repository URL for recipe generation (required if SKIP_GENERATE != "1")
+# Git repository URL for recipe generation (required for generate_modules)
 # Example: "https://github.com/rancher/k3s.git"
 GO_MOD_DISCOVERY_GIT_REPO ?= ""
 
@@ -126,7 +120,14 @@ GO_MOD_DISCOVERY_RECIPEDIR ?= "${FILE_DIRNAME}"
 # Empty default for TAGS if not set by recipe (avoids undefined variable errors)
 TAGS ?= ""
 
-# Shell task that mirrors do_compile but with network access and discovery GOMODCACHE
+# =============================================================================
+# TASK 1: do_discover_modules - Build and download modules
+# =============================================================================
+# This task builds the project with network access to discover and download
+# all required Go modules from proxy.golang.org into a persistent cache.
+#
+# Usage: bitbake <recipe> -c discover_modules
+#
 do_discover_modules() {
     # Validate required variable
     if [ -z "${GO_MOD_DISCOVERY_BUILD_TARGET}" ]; then
@@ -144,10 +145,9 @@ Hint: Set GO_MOD_DISCOVERY_SRCDIR to the directory containing go.mod"
     fi
 
     # Use PERSISTENT cache location outside WORKDIR to survive cleanall
-    # This is stored in ${TOPDIR}/go-mod-discovery/${PN}/${PV}/ so it persists
     DISCOVERY_CACHE="${GO_MOD_DISCOVERY_DIR}/cache"
 
-    # Create required directories first
+    # Create required directories
     mkdir -p "${DISCOVERY_CACHE}"
     mkdir -p "${WORKDIR}/go-tmp"
     mkdir -p "$(dirname "${GO_MOD_DISCOVERY_OUTPUT}")"
@@ -159,21 +159,18 @@ Hint: Set GO_MOD_DISCOVERY_SRCDIR to the directory containing go.mod"
     export GOPROXY="https://proxy.golang.org,direct"
     export GOSUMDB="sum.golang.org"
 
-    # Standard Go environment - use recipe-provided GOPATH or default
+    # Standard Go environment
     export GOPATH="${GO_MOD_DISCOVERY_GOPATH}:${STAGING_DIR_TARGET}/${prefix}/local/go"
     export CGO_ENABLED="1"
     export GOTOOLCHAIN="local"
-
-    # Use system temp directory for Go's work files
     export GOTMPDIR="${WORKDIR}/go-tmp"
 
-    # Disable excessive debug output from BitBake environment
+    # Disable excessive debug output
     unset GODEBUG
 
     # Build tags from recipe configuration
     TAGS="${GO_MOD_DISCOVERY_BUILD_TAGS}"
 
-    # Change to source directory
     cd "${GO_MOD_DISCOVERY_SRCDIR}"
 
     echo "======================================================================"
@@ -187,21 +184,11 @@ Hint: Set GO_MOD_DISCOVERY_SRCDIR to the directory containing go.mod"
     echo "LDFLAGS:       ${GO_MOD_DISCOVERY_LDFLAGS}"
     echo ""
 
-    # Use native go binary (not cross-compiler)
+    # Use native go binary
     GO_NATIVE="${STAGING_DIR_NATIVE}${bindir_native}/go"
 
-    # NOTE: Do NOT run go mod tidy during discovery - it can upgrade versions in go.mod
-    # without adding checksums to go.sum, causing version mismatches.
-    # The source's go.mod/go.sum should already be correct for the commit.
-    # echo "Running: go mod tidy"
-    # ${GO_NATIVE} mod tidy
-    # ${GO_NATIVE} mod download  # If tidy is re-enabled, this ensures go.sum gets all checksums
-
-    echo ""
     echo "Running: go build (to discover all modules)..."
 
-    # Build to discover ALL modules that would be used at compile time
-    # This is better than 'go mod download' because it handles build tags correctly
     BUILD_CMD="${GO_NATIVE} build -v -trimpath"
     if [ -n "${TAGS}" ]; then
         BUILD_CMD="${BUILD_CMD} -tags \"${TAGS}\""
@@ -214,68 +201,39 @@ Hint: Set GO_MOD_DISCOVERY_SRCDIR to the directory containing go.mod"
 
     echo ""
     echo "Fetching ALL modules referenced in go.sum..."
-    # go build downloads .zip files but not always .info files
-    # We need .info files for VCS metadata (Origin.URL, Origin.Hash)
-    # Extract unique module@version pairs from go.sum and download each
-    # go.sum format: "module version/go.mod hash" or "module version hash"
-    #
-    # IMPORTANT: We must download ALL versions, including /go.mod-only entries!
-    # When GOPROXY=off during compile, Go may need these for dependency resolution.
-    # Strip the /go.mod suffix to get the base version, then download it.
     awk '{gsub(/\/go\.mod$/, "", $2); print $1 "@" $2}' go.sum | sort -u | while read modver; do
         ${GO_NATIVE} mod download "$modver" 2>/dev/null || true
     done
 
-    # Download ALL modules in the complete dependency graph.
-    # The go.sum loop above only gets direct dependencies. Replace directives
-    # can introduce transitive deps that aren't in go.sum but are needed at
-    # compile time when GOPROXY=off. `go mod download all` resolves and
-    # downloads the entire module graph, including transitive dependencies.
     echo ""
     echo "Downloading complete module graph (including transitive deps)..."
     ${GO_NATIVE} mod download all 2>&1 || echo "Warning: some modules may have failed to download"
 
-    # Additionally scan for any modules that go build downloaded but don't have .info
-    # This ensures we capture everything that was fetched dynamically
     echo ""
     echo "Ensuring .info files for all cached modules..."
     find "${GOMODCACHE}/cache/download" -name "*.zip" 2>/dev/null | while read zipfile; do
-        # Extract module@version from path like: .../module/@v/version.zip
         version=$(basename "$zipfile" .zip)
         moddir=$(dirname "$zipfile")
         infofile="${moddir}/${version}.info"
         if [ ! -f "$infofile" ]; then
-            # Reconstruct module path from directory structure
-            # cache/download/github.com/foo/bar/@v/v1.0.0.zip -> github.com/foo/bar@v1.0.0
             modpath=$(echo "$moddir" | sed "s|${GOMODCACHE}/cache/download/||" | sed 's|/@v$||')
             echo "  Fetching .info for: ${modpath}@${version}"
             ${GO_NATIVE} mod download "${modpath}@${version}" 2>/dev/null || true
         fi
     done
 
-    # Download transitive deps of REPLACED modules.
-    # Replace directives can point to older versions whose deps aren't in the MVS
-    # graph. At compile time with GOPROXY=off, Go validates the replaced version's
-    # go.mod. We parse replace directives and download each replacement version,
-    # which fetches all its transitive dependencies.
     echo ""
     echo "Downloading dependencies of replaced modules..."
-
-    # Extract replace directives: "old_module => new_module new_version"
     awk '/^replace \($/,/^\)$/ {if ($0 !~ /^replace|^\)/) print}' go.mod | \
     grep "=>" | while read line; do
-        # Parse: github.com/foo/bar => github.com/baz/qux v1.2.3
         new_module=$(echo "$line" | awk '{print $(NF-1)}')
         new_version=$(echo "$line" | awk '{print $NF}')
-
         if [ -n "$new_module" ] && [ -n "$new_version" ] && [ "$new_version" != "=>" ]; then
             echo "  Replace target: ${new_module}@${new_version}"
-            # Download this specific version - Go will fetch all its dependencies
             ${GO_NATIVE} mod download "${new_module}@${new_version}" 2>/dev/null || true
         fi
     done
 
-    # Count modules discovered
     MODULE_COUNT=$(find "${GOMODCACHE}/cache/download" -name "*.info" 2>/dev/null | wc -l)
 
     echo ""
@@ -284,148 +242,190 @@ Hint: Set GO_MOD_DISCOVERY_SRCDIR to the directory containing go.mod"
     echo "======================================================================"
     echo "Modules discovered: ${MODULE_COUNT}"
     echo "Cache location:     ${GOMODCACHE}"
-
-    # Extract module metadata automatically (unless skipped)
-    if [ "${GO_MOD_DISCOVERY_SKIP_EXTRACT}" != "1" ]; then
-        echo ""
-        echo "Extracting module metadata..."
-
-        # Find the extraction script relative to this class file
-        EXTRACT_SCRIPT="${COREBASE}/../meta-virtualization/scripts/extract-discovered-modules.py"
-        if [ ! -f "${EXTRACT_SCRIPT}" ]; then
-            # Try alternate location
-            EXTRACT_SCRIPT="$(dirname "${COREBASE}")/meta-virtualization/scripts/extract-discovered-modules.py"
-        fi
-        if [ ! -f "${EXTRACT_SCRIPT}" ]; then
-            # Last resort - search in layer path
-            for layer in ${BBLAYERS}; do
-                if [ -f "${layer}/scripts/extract-discovered-modules.py" ]; then
-                    EXTRACT_SCRIPT="${layer}/scripts/extract-discovered-modules.py"
-                    break
-                fi
-            done
-        fi
-
-        if [ -f "${EXTRACT_SCRIPT}" ]; then
-            python3 "${EXTRACT_SCRIPT}" \
-                --gomodcache "${GOMODCACHE}" \
-                --output "${GO_MOD_DISCOVERY_MODULES_JSON}"
-            EXTRACT_RC=$?
-            if [ $EXTRACT_RC -eq 0 ]; then
-                echo ""
-                echo "✓ Module metadata extracted to: ${GO_MOD_DISCOVERY_MODULES_JSON}"
-            else
-                bbwarn "Module extraction failed (exit code $EXTRACT_RC)"
-                bbwarn "You can run manually: python3 ${EXTRACT_SCRIPT} --gomodcache ${GOMODCACHE} --output ${GO_MOD_DISCOVERY_MODULES_JSON}"
-                EXTRACT_RC=1  # Mark as failed for generation check
-            fi
-        else
-            bbwarn "Could not find extract-discovered-modules.py script"
-            bbwarn "Run manually: extract-discovered-modules.py --gomodcache ${GOMODCACHE} --output ${GO_MOD_DISCOVERY_MODULES_JSON}"
-            EXTRACT_RC=1  # Mark as failed for generation check
-        fi
-    else
-        echo ""
-        echo "Skipping automatic extraction (GO_MOD_DISCOVERY_SKIP_EXTRACT=1)"
-        EXTRACT_RC=1  # Skip generation too if extraction skipped
-    fi
-
-    # Step 3: Generate recipe .inc files (unless skipped or extraction failed)
-    if [ "${GO_MOD_DISCOVERY_SKIP_GENERATE}" != "1" ] && [ "${EXTRACT_RC:-0}" = "0" ]; then
-        # Validate required git repo
-        if [ -z "${GO_MOD_DISCOVERY_GIT_REPO}" ]; then
-            bbwarn "GO_MOD_DISCOVERY_GIT_REPO not set - skipping recipe generation"
-            bbwarn "Set GO_MOD_DISCOVERY_GIT_REPO in your recipe to enable automatic generation"
-            echo ""
-            echo "NEXT STEP: Regenerate recipe manually:"
-            echo ""
-            echo "   ./meta-virtualization/scripts/oe-go-mod-fetcher.py \\"
-            echo "     --discovered-modules ${GO_MOD_DISCOVERY_MODULES_JSON} \\"
-            echo "     --git-repo <your-git-repo-url> \\"
-            echo "     --git-ref ${GO_MOD_DISCOVERY_GIT_REF} \\"
-            echo "     --recipedir ${GO_MOD_DISCOVERY_RECIPEDIR}"
-        else
-            echo ""
-            echo "Generating recipe .inc files..."
-
-            # Find the fetcher script (same search as extraction script)
-            FETCHER_SCRIPT="${COREBASE}/../meta-virtualization/scripts/oe-go-mod-fetcher.py"
-            if [ ! -f "${FETCHER_SCRIPT}" ]; then
-                FETCHER_SCRIPT="$(dirname "${COREBASE}")/meta-virtualization/scripts/oe-go-mod-fetcher.py"
-            fi
-            if [ ! -f "${FETCHER_SCRIPT}" ]; then
-                for layer in ${BBLAYERS}; do
-                    if [ -f "${layer}/scripts/oe-go-mod-fetcher.py" ]; then
-                        FETCHER_SCRIPT="${layer}/scripts/oe-go-mod-fetcher.py"
-                        break
-                    fi
-                done
-            fi
-
-            if [ -f "${FETCHER_SCRIPT}" ]; then
-                python3 "${FETCHER_SCRIPT}" \
-                    --discovered-modules "${GO_MOD_DISCOVERY_MODULES_JSON}" \
-                    --git-repo "${GO_MOD_DISCOVERY_GIT_REPO}" \
-                    --git-ref "${GO_MOD_DISCOVERY_GIT_REF}" \
-                    --recipedir "${GO_MOD_DISCOVERY_RECIPEDIR}"
-                GENERATE_RC=$?
-                if [ $GENERATE_RC -eq 0 ]; then
-                    echo ""
-                    echo "✓ Recipe files regenerated in: ${GO_MOD_DISCOVERY_RECIPEDIR}"
-                else
-                    bbwarn "Recipe generation failed (exit code $GENERATE_RC)"
-                    bbwarn "Check the output above for errors"
-                fi
-            else
-                bbwarn "Could not find oe-go-mod-fetcher.py script"
-                bbwarn "Run manually: oe-go-mod-fetcher.py --discovered-modules ${GO_MOD_DISCOVERY_MODULES_JSON} --git-repo ${GO_MOD_DISCOVERY_GIT_REPO} --git-ref ${GO_MOD_DISCOVERY_GIT_REF} --recipedir ${GO_MOD_DISCOVERY_RECIPEDIR}"
-            fi
-        fi
-    elif [ "${GO_MOD_DISCOVERY_SKIP_GENERATE}" = "1" ]; then
-        echo ""
-        echo "Skipping automatic generation (GO_MOD_DISCOVERY_SKIP_GENERATE=1)"
-        echo ""
-        echo "NEXT STEP: Regenerate recipe manually:"
-        echo ""
-        echo "   ./meta-virtualization/scripts/oe-go-mod-fetcher.py \\"
-        echo "     --discovered-modules ${GO_MOD_DISCOVERY_MODULES_JSON} \\"
-        echo "     --git-repo <your-git-repo-url> \\"
-        echo "     --git-ref <your-git-ref> \\"
-        echo "     --recipedir ${GO_MOD_DISCOVERY_RECIPEDIR}"
-    fi
-
     echo ""
-    echo "NOTE: Cache is stored OUTSIDE WORKDIR in a persistent location."
-    echo "      This cache survives 'bitbake ${PN} -c cleanall'!"
-    echo "      To clean: rm -rf ${GO_MOD_DISCOVERY_DIR}"
+    echo "Next steps:"
+    echo "  bitbake ${PN} -c extract_modules   # Extract metadata to JSON"
+    echo "  bitbake ${PN} -c generate_modules  # Generate .inc files"
     echo ""
-    echo "======================================================================"
+    echo "Or run all at once:"
+    echo "  bitbake ${PN} -c discover_and_generate"
+    echo ""
 }
 
-# Make this task manually runnable (not part of default build)
-# Run after unpack and patch so source is available
 addtask discover_modules after do_patch
-
-# Task dependencies - need source unpacked and full toolchain available
-# Depend on do_prepare_recipe_sysroot to get cross-compiler for CGO
 do_discover_modules[depends] = "${PN}:do_prepare_recipe_sysroot"
-
-# Enable network access for this task ONLY
 do_discover_modules[network] = "1"
-
-# Don't create stamp file - allow running multiple times
 do_discover_modules[nostamp] = "1"
-
-# Track all configuration variables for proper task hashing
 do_discover_modules[vardeps] += "GO_MOD_DISCOVERY_DIR GO_MOD_DISCOVERY_SRCDIR \
     GO_MOD_DISCOVERY_BUILD_TARGET GO_MOD_DISCOVERY_BUILD_TAGS \
-    GO_MOD_DISCOVERY_LDFLAGS GO_MOD_DISCOVERY_GOPATH GO_MOD_DISCOVERY_OUTPUT \
-    GO_MOD_DISCOVERY_MODULES_JSON GO_MOD_DISCOVERY_SKIP_EXTRACT \
-    GO_MOD_DISCOVERY_SKIP_GENERATE GO_MOD_DISCOVERY_GIT_REPO \
+    GO_MOD_DISCOVERY_LDFLAGS GO_MOD_DISCOVERY_GOPATH GO_MOD_DISCOVERY_OUTPUT"
+
+# =============================================================================
+# TASK 2: do_extract_modules - Extract metadata from cache
+# =============================================================================
+# This task extracts module metadata from the discovery cache into a JSON file.
+# The JSON file can then be used with oe-go-mod-fetcher.py --discovered-modules.
+#
+# Usage: bitbake <recipe> -c extract_modules
+#
+do_extract_modules() {
+    DISCOVERY_CACHE="${GO_MOD_DISCOVERY_DIR}/cache"
+
+    if [ ! -d "${DISCOVERY_CACHE}/cache/download" ]; then
+        bbfatal "Discovery cache not found: ${DISCOVERY_CACHE}
+Run 'bitbake ${PN} -c discover_modules' first to populate the cache."
+    fi
+
+    echo "======================================================================"
+    echo "EXTRACTING MODULE METADATA: ${PN} ${PV}"
+    echo "======================================================================"
+    echo "Cache:  ${DISCOVERY_CACHE}"
+    echo "Output: ${GO_MOD_DISCOVERY_MODULES_JSON}"
+    echo ""
+
+    # Find the extraction script
+    EXTRACT_SCRIPT=""
+    for layer in ${BBLAYERS}; do
+        if [ -f "${layer}/scripts/extract-discovered-modules.py" ]; then
+            EXTRACT_SCRIPT="${layer}/scripts/extract-discovered-modules.py"
+            break
+        fi
+    done
+
+    if [ -z "${EXTRACT_SCRIPT}" ]; then
+        bbfatal "Could not find extract-discovered-modules.py in any layer"
+    fi
+
+    python3 "${EXTRACT_SCRIPT}" \
+        --gomodcache "${DISCOVERY_CACHE}" \
+        --output "${GO_MOD_DISCOVERY_MODULES_JSON}"
+
+    if [ $? -eq 0 ]; then
+        MODULE_COUNT=$(python3 -c "import json; print(len(json.load(open('${GO_MOD_DISCOVERY_MODULES_JSON}'))['modules']))" 2>/dev/null || echo "?")
+        echo ""
+        echo "======================================================================"
+        echo "EXTRACTION COMPLETE"
+        echo "======================================================================"
+        echo "Modules extracted: ${MODULE_COUNT}"
+        echo "Output file:       ${GO_MOD_DISCOVERY_MODULES_JSON}"
+        echo ""
+        echo "Next step:"
+        echo "  bitbake ${PN} -c generate_modules"
+        echo ""
+    else
+        bbfatal "Module extraction failed"
+    fi
+}
+
+addtask extract_modules
+do_extract_modules[nostamp] = "1"
+do_extract_modules[vardeps] += "GO_MOD_DISCOVERY_DIR GO_MOD_DISCOVERY_MODULES_JSON"
+
+# =============================================================================
+# TASK 3: do_generate_modules - Generate .inc files
+# =============================================================================
+# This task generates go-mod-git.inc and go-mod-cache.inc from the extracted
+# modules.json file.
+#
+# Usage: bitbake <recipe> -c generate_modules
+#
+do_generate_modules() {
+    if [ ! -f "${GO_MOD_DISCOVERY_MODULES_JSON}" ]; then
+        bbfatal "Modules JSON not found: ${GO_MOD_DISCOVERY_MODULES_JSON}
+Run 'bitbake ${PN} -c extract_modules' first to create the modules file."
+    fi
+
+    if [ -z "${GO_MOD_DISCOVERY_GIT_REPO}" ]; then
+        bbfatal "GO_MOD_DISCOVERY_GIT_REPO must be set for recipe generation.
+Add to your recipe: GO_MOD_DISCOVERY_GIT_REPO = \"https://github.com/...\"
+Or run 'bitbake ${PN} -c show_upgrade_commands' to see manual options."
+    fi
+
+    echo "======================================================================"
+    echo "GENERATING RECIPE FILES: ${PN} ${PV}"
+    echo "======================================================================"
+    echo "Modules JSON: ${GO_MOD_DISCOVERY_MODULES_JSON}"
+    echo "Git repo:     ${GO_MOD_DISCOVERY_GIT_REPO}"
+    echo "Git ref:      ${GO_MOD_DISCOVERY_GIT_REF}"
+    echo "Recipe dir:   ${GO_MOD_DISCOVERY_RECIPEDIR}"
+    echo ""
+
+    # Find the fetcher script
+    FETCHER_SCRIPT=""
+    for layer in ${BBLAYERS}; do
+        if [ -f "${layer}/scripts/oe-go-mod-fetcher.py" ]; then
+            FETCHER_SCRIPT="${layer}/scripts/oe-go-mod-fetcher.py"
+            break
+        fi
+    done
+
+    if [ -z "${FETCHER_SCRIPT}" ]; then
+        bbfatal "Could not find oe-go-mod-fetcher.py in any layer"
+    fi
+
+    python3 "${FETCHER_SCRIPT}" \
+        --discovered-modules "${GO_MOD_DISCOVERY_MODULES_JSON}" \
+        --git-repo "${GO_MOD_DISCOVERY_GIT_REPO}" \
+        --git-ref "${GO_MOD_DISCOVERY_GIT_REF}" \
+        --recipedir "${GO_MOD_DISCOVERY_RECIPEDIR}"
+
+    if [ $? -eq 0 ]; then
+        echo ""
+        echo "======================================================================"
+        echo "GENERATION COMPLETE"
+        echo "======================================================================"
+        echo "Files generated in: ${GO_MOD_DISCOVERY_RECIPEDIR}"
+        echo "  - go-mod-git.inc"
+        echo "  - go-mod-cache.inc"
+        echo ""
+        echo "You can now build the recipe:"
+        echo "  bitbake ${PN}"
+        echo ""
+    else
+        bbfatal "Recipe generation failed"
+    fi
+}
+
+addtask generate_modules
+do_generate_modules[nostamp] = "1"
+do_generate_modules[vardeps] += "GO_MOD_DISCOVERY_MODULES_JSON GO_MOD_DISCOVERY_GIT_REPO \
     GO_MOD_DISCOVERY_GIT_REF GO_MOD_DISCOVERY_RECIPEDIR"
 
-# Task to clean the persistent discovery cache
-# Usage: bitbake <recipe> -c clean_discovery
+# =============================================================================
+# TASK 4: do_discover_and_generate - All-in-one convenience task
+# =============================================================================
+# This task runs discover_modules, extract_modules, and generate_modules
+# in sequence. It's the "do everything" option.
+#
+# Usage: bitbake <recipe> -c discover_and_generate
+#
+do_discover_and_generate() {
+    echo "======================================================================"
+    echo "FULL DISCOVERY AND GENERATION: ${PN} ${PV}"
+    echo "======================================================================"
+    echo ""
+    echo "This task will run:"
+    echo "  1. discover_modules  - Build and download modules"
+    echo "  2. extract_modules   - Extract metadata to JSON"
+    echo "  3. generate_modules  - Generate .inc files"
+    echo ""
+}
+
+# Chain the tasks together using task dependencies
+python do_discover_and_generate_setdeps() {
+    # This runs discover -> extract -> generate in sequence
+    pass
+}
+
+addtask discover_and_generate after do_patch
+do_discover_and_generate[depends] = "${PN}:do_prepare_recipe_sysroot"
+do_discover_and_generate[network] = "1"
+do_discover_and_generate[nostamp] = "1"
+do_discover_and_generate[postfuncs] = "do_discover_modules do_extract_modules do_generate_modules"
+
+# =============================================================================
+# TASK: do_clean_discovery - Clean the persistent cache
+# =============================================================================
 do_clean_discovery() {
     if [ -d "${GO_MOD_DISCOVERY_DIR}" ]; then
         echo "Removing discovery cache: ${GO_MOD_DISCOVERY_DIR}"
@@ -439,3 +439,96 @@ do_clean_discovery() {
 addtask clean_discovery
 do_clean_discovery[nostamp] = "1"
 do_clean_discovery[vardeps] += "GO_MOD_DISCOVERY_DIR"
+
+# =============================================================================
+# TASK: do_show_upgrade_commands - Show command lines without running
+# =============================================================================
+python do_show_upgrade_commands() {
+    import os
+
+    pn = d.getVar('PN')
+    pv = d.getVar('PV')
+    git_repo = d.getVar('GO_MOD_DISCOVERY_GIT_REPO') or '<GIT_REPO_URL>'
+    git_ref = d.getVar('GO_MOD_DISCOVERY_GIT_REF') or d.getVar('SRCREV') or '<GIT_REF>'
+    recipedir = d.getVar('GO_MOD_DISCOVERY_RECIPEDIR') or d.getVar('FILE_DIRNAME')
+    discovery_dir = d.getVar('GO_MOD_DISCOVERY_DIR')
+    modules_json = d.getVar('GO_MOD_DISCOVERY_MODULES_JSON')
+
+    # Find script locations
+    fetcher_script = None
+    extract_script = None
+    for layer in d.getVar('BBLAYERS').split():
+        candidate = os.path.join(layer, 'scripts', 'oe-go-mod-fetcher.py')
+        if os.path.exists(candidate):
+            fetcher_script = candidate
+        candidate = os.path.join(layer, 'scripts', 'extract-discovered-modules.py')
+        if os.path.exists(candidate):
+            extract_script = candidate
+
+    fetcher_script = fetcher_script or './meta-virtualization/scripts/oe-go-mod-fetcher.py'
+    extract_script = extract_script or './meta-virtualization/scripts/extract-discovered-modules.py'
+
+    bb.plain("")
+    bb.plain("=" * 70)
+    bb.plain(f"UPGRADE COMMANDS FOR: {pn} {pv}")
+    bb.plain("=" * 70)
+    bb.plain("")
+    bb.plain("Option 1: Generate from git repository (no BitBake required)")
+    bb.plain("-" * 70)
+    bb.plain("")
+    bb.plain("Run from your build directory:")
+    bb.plain("")
+    bb.plain(f"  {fetcher_script} \\")
+    bb.plain(f"    --git-repo {git_repo} \\")
+    bb.plain(f"    --git-ref {git_ref} \\")
+    bb.plain(f"    --recipedir {recipedir}")
+    bb.plain("")
+    bb.plain("")
+    bb.plain("Option 2: BitBake discovery (step by step)")
+    bb.plain("-" * 70)
+    bb.plain("")
+    bb.plain(f"  bitbake {pn} -c discover_modules    # Download modules (needs network)")
+    bb.plain(f"  bitbake {pn} -c extract_modules     # Extract metadata to JSON")
+    bb.plain(f"  bitbake {pn} -c generate_modules    # Generate .inc files")
+    bb.plain("")
+    bb.plain("")
+    bb.plain("Option 3: BitBake discovery (all-in-one)")
+    bb.plain("-" * 70)
+    bb.plain("")
+    bb.plain(f"  bitbake {pn} -c discover_and_generate")
+    bb.plain("")
+    bb.plain("")
+    bb.plain("Option 4: Use existing discovery cache")
+    bb.plain("-" * 70)
+    bb.plain("")
+    bb.plain(f"Discovery cache: {discovery_dir}")
+    bb.plain("")
+    bb.plain("Extract modules from cache:")
+    bb.plain("")
+    bb.plain(f"  {extract_script} \\")
+    bb.plain(f"    --gomodcache {discovery_dir}/cache \\")
+    bb.plain(f"    --output {modules_json}")
+    bb.plain("")
+    bb.plain("Then generate .inc files:")
+    bb.plain("")
+    bb.plain(f"  {fetcher_script} \\")
+    bb.plain(f"    --discovered-modules {modules_json} \\")
+    bb.plain(f"    --git-repo {git_repo} \\")
+    bb.plain(f"    --git-ref {git_ref} \\")
+    bb.plain(f"    --recipedir {recipedir}")
+    bb.plain("")
+    bb.plain("")
+    bb.plain("Generated files:")
+    bb.plain("-" * 70)
+    bb.plain("")
+    bb.plain("  go-mod-git.inc   - SRC_URI entries for fetching module git repos")
+    bb.plain("  go-mod-cache.inc - Module path mappings for cache creation")
+    bb.plain("")
+    bb.plain("=" * 70)
+    bb.plain("")
+}
+
+addtask show_upgrade_commands
+do_show_upgrade_commands[nostamp] = "1"
+do_show_upgrade_commands[vardeps] += "GO_MOD_DISCOVERY_GIT_REPO GO_MOD_DISCOVERY_GIT_REF \
+    GO_MOD_DISCOVERY_RECIPEDIR GO_MOD_DISCOVERY_DIR GO_MOD_DISCOVERY_MODULES_JSON"

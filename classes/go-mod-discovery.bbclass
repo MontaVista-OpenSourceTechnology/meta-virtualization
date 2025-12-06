@@ -205,7 +205,11 @@ Hint: Set GO_MOD_DISCOVERY_SRCDIR to the directory containing go.mod"
         BUILD_CMD="${BUILD_CMD} -tags \"${TAGS}\""
     fi
     BUILD_CMD="${BUILD_CMD} -ldflags \"${GO_MOD_DISCOVERY_LDFLAGS}\""
-    BUILD_CMD="${BUILD_CMD} -o \"${GO_MOD_DISCOVERY_OUTPUT}\" ${GO_MOD_DISCOVERY_BUILD_TARGET}"
+
+    # When building multiple packages (./... or multiple targets), go build
+    # requires the output to be a directory. Create the directory and use it.
+    mkdir -p "${GO_MOD_DISCOVERY_OUTPUT}"
+    BUILD_CMD="${BUILD_CMD} -o \"${GO_MOD_DISCOVERY_OUTPUT}/\" ${GO_MOD_DISCOVERY_BUILD_TARGET}"
 
     echo "Executing: ${BUILD_CMD}"
     eval ${BUILD_CMD}

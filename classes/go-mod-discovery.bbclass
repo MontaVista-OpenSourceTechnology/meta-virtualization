@@ -263,7 +263,9 @@ Hint: Set GO_MOD_DISCOVERY_SRCDIR to the directory containing go.mod"
     echo ""
 }
 
-addtask discover_modules after do_patch
+# Run after do_unpack but NOT after do_patch - patches often fail during uprevs
+# and are rarely needed for discovery (they typically fix runtime behavior, not dependencies)
+addtask discover_modules after do_unpack
 do_discover_modules[depends] = "${PN}:do_prepare_recipe_sysroot"
 do_discover_modules[network] = "1"
 do_discover_modules[nostamp] = "1"
@@ -432,7 +434,8 @@ python do_discover_and_generate_setdeps() {
     pass
 }
 
-addtask discover_and_generate after do_patch
+# Run after do_unpack but NOT after do_patch - patches often fail during uprevs
+addtask discover_and_generate after do_unpack
 do_discover_and_generate[depends] = "${PN}:do_prepare_recipe_sysroot"
 do_discover_and_generate[network] = "1"
 do_discover_and_generate[nostamp] = "1"

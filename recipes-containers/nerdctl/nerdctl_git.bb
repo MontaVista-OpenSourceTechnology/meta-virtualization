@@ -10,7 +10,7 @@ DEPENDS = " \
 "
 
 SRCREV_FORMAT = "nerdcli"
-SRCREV_nerdcli = "497c7cf74d09bf1ddf2678382360ca61e6faebac"
+SRCREV_nerdcli = "5604f9077214d1e7ef84e1699d794387d281195a"
 
 SRC_URI = "git://github.com/containerd/nerdctl.git;name=nerdcli;branch=main;protocol=https;destsuffix=${GO_SRCURI_DESTSUFFIX}"
 
@@ -27,7 +27,7 @@ LIC_FILES_CHKSUM = "file://src/import/LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd
 
 GO_IMPORT = "import"
 
-PV = "v2.0.3"
+PV = "v2.2.0"
 
 NERDCTL_PKG = "github.com/containerd/nerdctl"
 

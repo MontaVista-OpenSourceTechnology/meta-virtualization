@@ -8,6 +8,8 @@ inherit go-mod-vcs
 
 # Module metadata for cache building (one module per line)
 GO_MODULE_CACHE_DATA = '[\
+{"module":"github.com/spf13/cobra","version":"v1.9.1","vcs_hash":"b9eaed78e0a5f6d8926cb7b295c1304ebd0c79848e4fc0ad5e0ab83089f9081b","timestamp":"2025-02-16T23:42:04Z","subdir":"","vcs_ref":"refs/tags/v1.9.1"},\
+{"module":"github.com/spf13/pflag","version":"v1.0.6","vcs_hash":"b7f51c906eabb517613129455992f23a2f48e1c6186855b1b66ba9e619db1aa4","timestamp":"2025-01-09T00:37:54Z","subdir":"","vcs_ref":"refs/tags/v1.0.6"},\
 {"module":"github.com/vishvananda/netns","version":"v0.0.4","vcs_hash":"d15818789eb7bb00d665000b7884b01ceb67b9b437a04c9ecca082ba51e1565e","timestamp":"2023-01-23T18:27:00Z","subdir":"","vcs_ref":"refs/tags/v0.0.4"},\
 {"module":"github.com/google/go-cmp","version":"v0.6.0","vcs_hash":"066c8baed8b5c49c8bf75e59b5e0a559593a7098e3e99236e4fc5b6e29e3ac91","timestamp":"2023-08-31T17:32:40Z","subdir":"","vcs_ref":"refs/tags/v0.6.0"},\
 {"module":"github.com/google/pprof","version":"v0.0.0-20240727154555-813a5fbdbec8","vcs_hash":"01740331f170dffba2f38808727de567826c30b68d9ad7abb0f5ca900ca5a3ba","timestamp":"2024-07-27T15:45:55Z","subdir":"","vcs_ref":""},\
@@ -16,12 +18,15 @@ GO_MODULE_CACHE_DATA = '[\
 {"module":"github.com/go-logr/logr","version":"v1.4.2","vcs_hash":"9655eab28e005d39cc2bb4b149948f2765b6737fb833acda1ea9a8fa1c01f086","timestamp":"2024-05-20T10:45:40Z","subdir":"","vcs_ref":"refs/tags/v1.4.2"},\
 {"module":"github.com/ianlancetaylor/demangle","version":"v0.0.0-20240312041847-bd984b5ce465","vcs_hash":"190d0769fcb0583bb638d524115b887c6d000e04c6d64f1488a06b55bf5eac4c","timestamp":"2024-03-12T04:18:47Z","subdir":"","vcs_ref":""},\
 {"module":"github.com/go-task/slim-sprig/v3","version":"v3.0.0","vcs_hash":"8dd5020cf322cc4f91014ac7828ac4826cba4ce7da08320ac497d655159088a5","timestamp":"2023-09-14T01:46:41Z","subdir":"","vcs_ref":"refs/tags/v3.0.0"},\
-{"module":"github.com/containernetworking/cni","version":"v1.2.4-0.20240829080103-4c9ae43c0eaa","vcs_hash":"dfc8140cf68d46792c81038b0574be7d82808f552267e38eb21e351f504c653c","timestamp":"2024-08-29T08:01:03Z","subdir":"","vcs_ref":""},\
+{"module":"github.com/containernetworking/cni","version":"v1.3.1-0.20251110152224-1d67f89a2e3c","vcs_hash":"a3d62a01a5bcbd383225f2636ba0f99154ca2a81b07aad16b9e30e1630ea00f6","timestamp":"2025-11-10T15:22:24Z","subdir":"","vcs_ref":""},\
 {"module":"github.com/pmezard/go-difflib","version":"v1.0.0","vcs_hash":"c04ad296d2e3203fda8b7ca96feaca21b20b3b7441e33c7d67cda029ea61ab4c","timestamp":"2016-01-10T10:55:54Z","subdir":"","vcs_ref":"refs/tags/v1.0.0"},\
 {"module":"github.com/davecgh/go-spew","version":"v1.1.1","vcs_hash":"4c7d69cfe586f86079773ff48d94f76d327c2914d8dfeffca9e34fd1146e5d5e","timestamp":"2018-02-21T23:26:28Z","subdir":"","vcs_ref":"refs/tags/v1.1.1"},\
 {"module":"github.com/onsi/gomega","version":"v1.34.1","vcs_hash":"5d804844b09e94f5ebe51951fab8e7b49bdb61690fc0ffa035a4b0d39839fab2","timestamp":"2024-07-29T18:29:33Z","subdir":"","vcs_ref":"refs/tags/v1.34.1"},\
 {"module":"github.com/onsi/ginkgo/v2","version":"v2.20.1","vcs_hash":"250c6ed89fc0be4bae692e1c5f1f1e6828774d5a023a2a0844246ec3f2b52c01","timestamp":"2024-08-21T18:37:22Z","subdir":"","vcs_ref":"refs/tags/v2.20.1"},\
+{"module":"github.com/russross/blackfriday/v2","version":"v2.1.0","vcs_hash":"6dd1604eceba1790dbf7f827f1e22a5866a5348a2ab616daed7363a6e16e081d","timestamp":"2020-10-27T03:47:54Z","subdir":"v2","vcs_ref":"refs/tags/v2.1.0"},\
 {"module":"github.com/stretchr/testify","version":"v1.8.4","vcs_hash":"cec0eadb3ceb93408aae446eb0c115ea4a39cd4ba2048947ee55e1f8969c3872","timestamp":"2023-05-30T09:38:40Z","subdir":"","vcs_ref":"refs/tags/v1.8.4"},\
+{"module":"github.com/inconshreveable/mousetrap","version":"v1.1.0","vcs_hash":"a9f0ac4cf05240ceb9790811cbd8ab3cbdcd404501a9ca5a402a28033e7235d8","timestamp":"2022-11-27T22:01:53Z","subdir":"","vcs_ref":"refs/tags/v1.1.0"},\
+{"module":"github.com/cpuguy83/go-md2man/v2","version":"v2.0.6","vcs_hash":"0b9036af46cc50aa9433a461266e6ef3b3645807c3d1fa49cc53eb201e011781","timestamp":"2024-12-16T17:50:50Z","subdir":"","vcs_ref":"refs/tags/v2.0.6"},\
 {"module":"golang.org/x/sys","version":"v0.23.0","vcs_hash":"ab1c9d8044ec55ff95f7d385c76150aeabf000c2a14bc1775a1766dd90f14cda","timestamp":"2024-08-03T07:06:10Z","subdir":"","vcs_ref":"refs/tags/v0.23.0"},\
 {"module":"golang.org/x/mod","version":"v0.20.0","vcs_hash":"c837184171f2b9a408933cc7892b7ef003ef72a2d18747dc23c77f54fa57d62b","timestamp":"2024-07-30T14:22:55Z","subdir":"","vcs_ref":"refs/tags/v0.20.0"},\
 {"module":"golang.org/x/term","version":"v0.23.0","vcs_hash":"5c601017bf1fc28cce196476ddd88d281c6d676e09ca5cb41e9b848278953afd","timestamp":"2024-08-06T15:15:04Z","subdir":"","vcs_ref":"refs/tags/v0.23.0"},\

@@ -301,7 +301,8 @@ python do_create_module_cache() {
                     continue
 
             # Fallback: if no go.mod found, use requested path
-            bb.warn(f"No go.mod found for {requested_module} in {vcs_path}, using requested path")
+            # This is normal for some modules (e.g., pure Go stdlib-like packages)
+            bb.note(f"No go.mod found for {requested_module} in {vcs_path}, using requested path")
             return requested_module, ''
 
         canonical_module_path, detected_subdir = detect_canonical_module_path(vcs_path, subdir, module_path)

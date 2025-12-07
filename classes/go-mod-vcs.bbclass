@@ -42,6 +42,13 @@
 #                                Go can extract on-demand from cache (experimental)
 #
 
+# Override go.bbclass defaults for VCS-based module caching
+# These ensure offline builds use our pre-built module cache
+export GOMODCACHE = "${S}/pkg/mod"
+export GOPROXY = "off"
+export GOSUMDB = "off"
+export GOTOOLCHAIN = "local"
+
 python do_create_module_cache() {
     """
     Build Go module cache from downloaded git repositories.
@@ -473,7 +480,7 @@ python do_create_module_cache() {
                     if go_match:
                         go_version = go_match.group(1).decode('utf-8', errors='ignore')
                     # Module declaration doesn't match import path - synthesize correct one
-                    bb.warn(f"Module {module_path}@{version}: go.mod declares '{declared_module}' but should be '{module_path}', synthesizing correct go.mod (preserving go {go_version})")
+                    bb.note(f"Module {module_path}@{version}: go.mod declares '{declared_module}' but should be '{module_path}', synthesizing correct go.mod (preserving go {go_version})")
                     mod_content = synthesize_go_mod(module_path, go_version)
         else:
             bb.debug(1, f"go.mod not found at {gomod_file}")
@@ -646,7 +653,7 @@ python do_create_module_cache() {
             hash_value = retry_hash
 
             if hash_value and hash_value != expected_hash:
-                bb.warn(f"{module_key} still mismatches expected hash after retry ({hash_value} != {expected_hash})")
+                bb.note(f"{module_key} still mismatches expected hash after retry ({hash_value} != {expected_hash})")
 
         if hash_value:
             ziphash_path = download_dir / f"{escaped_version}.ziphash"

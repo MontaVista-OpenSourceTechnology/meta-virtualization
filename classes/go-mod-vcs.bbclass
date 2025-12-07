@@ -671,6 +671,19 @@ python do_create_module_cache() {
             try:
                 with zipfile.ZipFile(zip_path, 'r') as zip_ref:
                     zip_ref.extractall(extract_dir)
+                # Make extracted files writable so BitBake can clean them later
+                # Go's module cache is read-only by design, but this breaks rm -rf
+                escaped_modpath = escape_module_path(module_path)
+                extracted_mod_dir = extract_dir / escaped_modpath / f"@{version}"
+                if extracted_mod_dir.exists():
+                    for root, dirs, files in os.walk(extracted_mod_dir):
+                        for dir_name in dirs:
+                            dir_path = Path(root) / dir_name
+                            dir_path.chmod(dir_path.stat().st_mode | stat.S_IWUSR)
+                        for file_name in files:
+                            file_path = Path(root) / file_name
+                            file_path.chmod(file_path.stat().st_mode | stat.S_IWUSR)
+                    extracted_mod_dir.chmod(extracted_mod_dir.stat().st_mode | stat.S_IWUSR)
                 bb.debug(1, f"Extracted {module_path}@{version} to {extract_dir}")
             except Exception as e:
                 bb.error(f"Failed to extract {module_path}@{version}: {e}")

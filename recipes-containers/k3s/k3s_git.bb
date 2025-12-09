@@ -20,9 +20,6 @@ SRCREV_k3s = "54f28d21a6208b1f8f9c33e14cf1fc65c2030107"
 SRCREV_FORMAT = "k3s_fuse"
 PV = "v1.34.1+k3s1+git"
 
-# v3.0.0 hybrid architecture files
-include go-mod-git.inc
-
 CNI_NETWORKING_FILES ?= "${UNPACKDIR}/cni-containerd-net.conf"
 
 # Build tags - used by both do_compile and do_discover_modules
@@ -34,6 +31,18 @@ GO_MOD_DISCOVERY_BUILD_TARGET = "./cmd/server/main.go"
 GO_MOD_DISCOVERY_LDFLAGS = "-X github.com/k3s-io/k3s/pkg/version.Version=${PV} -w -s"
 GO_MOD_DISCOVERY_GIT_REPO = "https://github.com/rancher/k3s.git"
 GO_MOD_DISCOVERY_GIT_REF = "${SRCREV_k3s}"
+
+# GO_MOD_FETCH_MODE: "vcs" (all git://) or "hybrid" (gomod:// + git://)
+GO_MOD_FETCH_MODE ?= "hybrid"
+
+# VCS mode: all modules via git://
+include ${@ "go-mod-git.inc" if d.getVar("GO_MOD_FETCH_MODE") == "vcs" else ""}
+include ${@ "go-mod-cache.inc" if d.getVar("GO_MOD_FETCH_MODE") == "vcs" else ""}
+
+# Hybrid mode: gomod:// for most, git:// for selected
+include ${@ "go-mod-hybrid-gomod.inc" if d.getVar("GO_MOD_FETCH_MODE") == "hybrid" else ""}
+include ${@ "go-mod-hybrid-git.inc" if d.getVar("GO_MOD_FETCH_MODE") == "hybrid" else ""}
+include ${@ "go-mod-hybrid-cache.inc" if d.getVar("GO_MOD_FETCH_MODE") == "hybrid" else ""}
 
 inherit go
 inherit goarch
@@ -60,9 +69,6 @@ DEPENDS += "rsync-native"
 # Go's PIE builds pull in cgo objects that still require text relocations.
 # Explicitly allow them at link time to avoid ld --fatal-warnings aborting the build.
 GO_EXTRA_LDFLAGS:append = " -Wl,-z,notext"
-
-# v3.0.0 module cache builder
-include go-mod-cache.inc
 
 do_compile() {
         export GOPATH="${S}/src/import/.gopath:${S}/src/import/vendor:${STAGING_DIR_TARGET}/${prefix}/local/go"

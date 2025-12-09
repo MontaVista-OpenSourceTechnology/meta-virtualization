@@ -1138,3 +1138,227 @@ python do_sync_go_files() {
 }
 
 addtask sync_go_files after do_create_module_cache before do_compile
+
+
+do_fix_go_mod_permissions() {
+    # Go module cache is intentionally read-only for integrity, but this breaks
+    # BitBake's rm -rf cleanup (sstate_eventhandler_reachablestamps).
+    # Make all files writable so workdir can be cleaned properly.
+    #
+    # Check multiple possible locations where Go module cache might exist
+    for modpath in "${S}/pkg/mod" "${S}/src/import/pkg/mod"; do
+        if [ -d "$modpath" ]; then
+            chmod -R u+w "$modpath" 2>/dev/null || true
+            bbnote "Fixed permissions on Go module cache: $modpath"
+        fi
+    done
+    # Also check sources subdirectory (for recipes with WORKDIR/sources layout)
+    if [ -d "${WORKDIR}/sources" ]; then
+        find "${WORKDIR}/sources" -type d -name "mod" -path "*/pkg/mod" 2>/dev/null | while read modpath; do
+            chmod -R u+w "$modpath" 2>/dev/null || true
+            bbnote "Fixed permissions on Go module cache: $modpath"
+        done
+    fi
+}
+
+# Run after sync_go_files (which is the last Go module setup task) and before compile
+addtask fix_go_mod_permissions after do_sync_go_files before do_compile
+
+
+python do_go_mod_recommend() {
+    """
+    Analyze VCS-fetched modules and recommend candidates for gomod:// conversion.
+
+    This task delegates to oe-go-mod-fetcher-hybrid.py --recommend to avoid
+    duplicating the analysis logic. The script handles:
+    - Module size calculation from vcs_cache
+    - Grouping by prefix (github.com/containerd, k8s.io, etc.)
+    - Suggesting --git prefixes for VCS-priority modules
+    - Generating conversion command lines
+
+    Run with: bitbake <recipe> -c go_mod_recommend
+    """
+    import subprocess
+    from pathlib import Path
+
+    # Find the hybrid script in meta-virtualization layer
+    layerdir = None
+    for layer in d.getVar('BBLAYERS').split():
+        if 'meta-virtualization' in layer:
+            layerdir = layer
+            break
+
+    if not layerdir:
+        bb.error("Could not find meta-virtualization layer in BBLAYERS")
+        return
+
+    scriptpath = Path(layerdir) / "scripts" / "oe-go-mod-fetcher-hybrid.py"
+    if not scriptpath.exists():
+        bb.error(f"Hybrid script not found at {scriptpath}")
+        return
+
+    # Get recipe directory and workdir
+    recipedir = d.getVar('FILE_DIRNAME')
+    workdir = d.getVar('WORKDIR')
+
+    # Build command to run the hybrid script with --recommend
+    cmd = [
+        'python3', str(scriptpath),
+        '--recipedir', recipedir,
+        '--recommend'
+    ]
+
+    # Add workdir if vcs_cache exists there (for size calculations)
+    vcs_cache = Path(workdir) / "sources" / "vcs_cache"
+    if vcs_cache.exists():
+        cmd.extend(['--workdir', workdir])
+
+    bb.note(f"Running: {' '.join(cmd)}")
+
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=300  # 5 minute timeout
+        )
+
+        # Print stdout (the recommendations)
+        if result.stdout:
+            for line in result.stdout.splitlines():
+                bb.plain(line)
+
+        # Print any errors
+        if result.stderr:
+            for line in result.stderr.splitlines():
+                bb.warn(line)
+
+        if result.returncode != 0:
+            bb.warn(f"Script exited with code {result.returncode}")
+
+    except subprocess.TimeoutExpired:
+        bb.error("Recommendation script timed out after 5 minutes")
+    except Exception as e:
+        bb.error(f"Failed to run recommendation script: {e}")
+
+    # Always print the recipe configuration hint
+    bb.plain("")
+    bb.plain("=" * 80)
+    bb.plain("RECIPE CONFIGURATION FOR SWITCHING MODES:")
+    bb.plain("=" * 80)
+    bb.plain("")
+    bb.plain("  Add this to your recipe to enable switching between VCS and hybrid modes:")
+    bb.plain("")
+    bb.plain('  # GO_MOD_FETCH_MODE: "vcs" (all git://) or "hybrid" (gomod:// + git://)')
+    bb.plain('  GO_MOD_FETCH_MODE ?= "vcs"')
+    bb.plain("")
+    bb.plain('  # VCS mode: all modules via git://')
+    bb.plain('  include ${@ "go-mod-git.inc" if d.getVar("GO_MOD_FETCH_MODE") == "vcs" else ""}')
+    bb.plain('  include ${@ "go-mod-cache.inc" if d.getVar("GO_MOD_FETCH_MODE") == "vcs" else ""}')
+    bb.plain("")
+    bb.plain('  # Hybrid mode: gomod:// for most, git:// for selected')
+    bb.plain('  include ${@ "go-mod-hybrid-gomod.inc" if d.getVar("GO_MOD_FETCH_MODE") == "hybrid" else ""}')
+    bb.plain('  include ${@ "go-mod-hybrid-git.inc" if d.getVar("GO_MOD_FETCH_MODE") == "hybrid" else ""}')
+    bb.plain('  include ${@ "go-mod-hybrid-cache.inc" if d.getVar("GO_MOD_FETCH_MODE") == "hybrid" else ""}')
+    bb.plain("")
+    bb.plain("  Then switch modes with: GO_MOD_FETCH_MODE = \"hybrid\" in local.conf")
+    bb.plain("")
+}
+
+addtask go_mod_recommend after do_fetch
+do_go_mod_recommend[nostamp] = "1"
+
+# =============================================================================
+# Go Module Cache Permission Fix
+# =============================================================================
+#
+# Go's module cache creates read-only files by design. This prevents BitBake's
+# do_unpack cleanup (cleandirs = ${S}) from removing the previous build's
+# module cache, causing "Permission denied" errors.
+#
+# Solution: Add a prefunc to do_unpack that makes the module cache writable
+# before BitBake tries to clean the directory.
+#
+
+python go_mod_fix_permissions() {
+    """
+    Fix Go module cache permissions before do_unpack cleanup.
+
+    Go creates read-only files in pkg/mod to prevent accidental modification.
+    BitBake's cleandirs tries to rm -rf ${S} before unpacking, which fails
+    on these read-only files. This prefunc makes them writable first.
+    """
+    import os
+    import stat
+    from pathlib import Path
+
+    s_dir = d.getVar('S')
+    if not s_dir:
+        return
+
+    # Check for Go module cache in various locations
+    mod_paths = [
+        Path(s_dir) / 'pkg' / 'mod',
+        Path(s_dir) / 'src' / 'import' / 'pkg' / 'mod',  # k3s-style layout
+    ]
+
+    for mod_cache in mod_paths:
+        if mod_cache.exists():
+            bb.note(f"Fixing Go module cache permissions: {mod_cache}")
+            try:
+                # Walk the tree and add write permission
+                for root, dirs, files in os.walk(str(mod_cache)):
+                    # Fix directory permissions first
+                    for d_name in dirs:
+                        d_path = os.path.join(root, d_name)
+                        try:
+                            current = os.stat(d_path).st_mode
+                            os.chmod(d_path, current | stat.S_IWUSR)
+                        except (OSError, PermissionError):
+                            pass
+                    # Fix file permissions
+                    for f_name in files:
+                        f_path = os.path.join(root, f_name)
+                        try:
+                            current = os.stat(f_path).st_mode
+                            os.chmod(f_path, current | stat.S_IWUSR)
+                        except (OSError, PermissionError):
+                            pass
+                bb.note(f"Fixed permissions on {mod_cache}")
+            except Exception as e:
+                bb.warn(f"Could not fix permissions on {mod_cache}: {e}")
+
+    # Also check the WORKDIR for sources subdirectories
+    workdir = d.getVar('WORKDIR')
+    if workdir:
+        sources_dir = Path(workdir) / 'sources'
+        if sources_dir.exists():
+            for source_subdir in sources_dir.iterdir():
+                if source_subdir.is_dir():
+                    for mod_subpath in ['pkg/mod', 'src/import/pkg/mod']:
+                        mod_cache = source_subdir / mod_subpath
+                        if mod_cache.exists():
+                            bb.note(f"Fixing Go module cache permissions: {mod_cache}")
+                            try:
+                                for root, dirs, files in os.walk(str(mod_cache)):
+                                    for d_name in dirs:
+                                        d_path = os.path.join(root, d_name)
+                                        try:
+                                            current = os.stat(d_path).st_mode
+                                            os.chmod(d_path, current | stat.S_IWUSR)
+                                        except (OSError, PermissionError):
+                                            pass
+                                    for f_name in files:
+                                        f_path = os.path.join(root, f_name)
+                                        try:
+                                            current = os.stat(f_path).st_mode
+                                            os.chmod(f_path, current | stat.S_IWUSR)
+                                        except (OSError, PermissionError):
+                                            pass
+                                bb.note(f"Fixed permissions on {mod_cache}")
+                            except Exception as e:
+                                bb.warn(f"Could not fix permissions on {mod_cache}: {e}")
+}
+
+# Run permission fix BEFORE do_unpack's cleandirs removes ${S}
+do_unpack[prefuncs] += "go_mod_fix_permissions"

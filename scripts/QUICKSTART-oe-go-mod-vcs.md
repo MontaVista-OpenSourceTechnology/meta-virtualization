@@ -379,6 +379,141 @@ GO_MODULE_CACHE_DATA = '[{"module":"github.com/spf13/cobra","version":"v1.8.1","
 
 ---
 
+## Hybrid Mode: Mixing gomod:// and git:// Fetchers
+
+For large projects like k3s with hundreds of modules, the VCS-only approach (all `git://`) can be slow due to the large number of git clones. **Hybrid mode** provides a faster alternative by using:
+
+- `gomod://` - Fast proxy.golang.org downloads for most modules
+- `git://` - VCS provenance for selected important modules (e.g., containerd, k8s.io)
+
+### Benefits
+
+| Mode | Fetch Speed | VCS Provenance | Use Case |
+|------|-------------|----------------|----------|
+| **VCS** (`git://` only) | Slower | Full | Security-critical, audit requirements |
+| **Hybrid** (`gomod://` + `git://`) | Faster | Selective | Development, CI, most builds |
+
+### Step 1: Build in VCS Mode First
+
+Ensure your recipe works in VCS mode before converting:
+
+```bash
+bitbake myapp -c discover_and_generate
+bitbake myapp
+```
+
+### Step 2: Run Recommendations
+
+After a successful VCS build, analyze which modules to keep as git:// vs convert to gomod://:
+
+```bash
+bitbake myapp -c go_mod_recommend
+```
+
+This outputs size-based recommendations and suggests prefixes to keep as `git://`.
+
+### Step 3: Generate Hybrid Files
+
+Use the hybrid conversion script with suggested prefixes:
+
+```bash
+python3 ./meta-virtualization/scripts/oe-go-mod-fetcher-hybrid.py \
+    --recipedir ./meta-virtualization/recipes-containers/myapp/ \
+    --workdir ${WORKDIR} \
+    --git "github.com/containerd,k8s.io,sigs.k8s.io"
+```
+
+This generates three new files:
+- `go-mod-hybrid-gomod.inc` - SRC_URI entries for gomod:// fetcher (with inline checksums)
+- `go-mod-hybrid-git.inc` - SRC_URI entries for git:// fetcher (VCS provenance)
+- `go-mod-hybrid-cache.inc` - Module metadata for the git:// modules
+
+### Step 4: Configure Recipe for Mode Switching
+
+Update your recipe to allow switching between modes:
+
+```bitbake
+# GO_MOD_FETCH_MODE: "vcs" (all git://) or "hybrid" (gomod:// + git://)
+GO_MOD_FETCH_MODE ?= "vcs"
+
+# VCS mode: all modules via git://
+include ${@ "go-mod-git.inc" if d.getVar("GO_MOD_FETCH_MODE") == "vcs" else ""}
+include ${@ "go-mod-cache.inc" if d.getVar("GO_MOD_FETCH_MODE") == "vcs" else ""}
+
+# Hybrid mode: gomod:// for most, git:// for selected
+include ${@ "go-mod-hybrid-gomod.inc" if d.getVar("GO_MOD_FETCH_MODE") == "hybrid" else ""}
+include ${@ "go-mod-hybrid-git.inc" if d.getVar("GO_MOD_FETCH_MODE") == "hybrid" else ""}
+include ${@ "go-mod-hybrid-cache.inc" if d.getVar("GO_MOD_FETCH_MODE") == "hybrid" else ""}
+```
+
+### Step 5: Switch Modes
+
+Switch between modes in `local.conf`:
+
+```bash
+# Use hybrid mode (faster)
+GO_MOD_FETCH_MODE = "hybrid"
+
+# Or use VCS mode (full provenance)
+GO_MOD_FETCH_MODE = "vcs"
+```
+
+Then rebuild:
+
+```bash
+bitbake myapp
+```
+
+### Hybrid Script Options
+
+| Option | Description |
+|--------|-------------|
+| `--recipedir` | Recipe directory containing go-mod-git.inc and go-mod-cache.inc |
+| `--workdir` | BitBake workdir for size calculations (optional) |
+| `--git "prefixes"` | Comma-separated prefixes to keep as git:// (everything else becomes gomod://) |
+| `--gomod "prefixes"` | Comma-separated prefixes to convert to gomod:// (everything else stays git://) |
+| `--no-checksums` | Skip fetching SHA256 checksums (not recommended) |
+| `--list` | List all modules with sizes |
+| `--recommend` | Show size-based conversion recommendations |
+
+### Example: k3s Hybrid Conversion
+
+```bash
+# 1. Ensure VCS mode works first
+bitbake k3s
+
+# 2. Get recommendations
+bitbake k3s -c go_mod_recommend
+
+# 3. Convert with recommended prefixes (keep containerd, k8s.io as git://)
+python3 ./meta-virtualization/scripts/oe-go-mod-fetcher-hybrid.py \
+    --recipedir ./meta-virtualization/recipes-containers/k3s/ \
+    --git "github.com/containerd,k8s.io,sigs.k8s.io,github.com/rancher"
+
+# 4. Enable hybrid mode
+echo 'GO_MOD_FETCH_MODE = "hybrid"' >> conf/local.conf
+
+# 5. Build in hybrid mode
+bitbake k3s
+```
+
+### Troubleshooting Hybrid Builds
+
+#### "Permission denied" during do_unpack
+
+Go's module cache creates read-only files. The `go-mod-vcs.bbclass` includes automatic permission fixes, but if you hit this on an existing build:
+
+```bash
+chmod -R u+w ${WORKDIR}/sources/
+bitbake myapp
+```
+
+#### BitBake parse errors with special characters
+
+Module paths like `git.sr.ht/~sbinet/gg` contain characters (`~`) that can cause BitBake parse errors in variable flag names. The hybrid script uses inline checksums (`sha256sum=...` in the SRC_URI) to avoid this issue.
+
+---
+
 ## Advanced: Manual Script Invocation
 
 For cases where BitBake isn't available or you need more control:

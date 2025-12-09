@@ -16,8 +16,18 @@ SRC_URI = "git://github.com/rootless-containers/rootlesskit;name=rootless;branch
            file://0001-rootlesskit-add-GOFLAGS-to-Makefile.patch \
           "
 
-include go-mod-git.inc
-include go-mod-cache.inc
+
+# GO_MOD_FETCH_MODE: "vcs" (all git://) or "hybrid" (gomod:// + git://)
+GO_MOD_FETCH_MODE ?= "hybrid"
+
+# VCS mode: all modules via git://
+include ${@ "go-mod-git.inc" if d.getVar("GO_MOD_FETCH_MODE") == "vcs" else ""}
+include ${@ "go-mod-cache.inc" if d.getVar("GO_MOD_FETCH_MODE") == "vcs" else ""}
+
+# Hybrid mode: gomod:// for most, git:// for selected
+include ${@ "go-mod-hybrid-gomod.inc" if d.getVar("GO_MOD_FETCH_MODE") == "hybrid" else ""}
+include ${@ "go-mod-hybrid-git.inc" if d.getVar("GO_MOD_FETCH_MODE") == "hybrid" else ""}
+include ${@ "go-mod-hybrid-cache.inc" if d.getVar("GO_MOD_FETCH_MODE") == "hybrid" else ""}
 
 LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://src/import/LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57"

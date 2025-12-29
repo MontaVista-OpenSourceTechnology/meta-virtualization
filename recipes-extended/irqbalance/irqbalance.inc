@@ -34,7 +34,7 @@ PACKAGECONFIG ?= "${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'systemd', 
 #
 PACKAGECONFIG[numa] = "--enable-numa,--disable-numa,numactl,"
 PACKAGECONFIG[libcap-ng] = "--with-libcap-ng,--without-libcap-ng,libcap-ng,"
-PACKAGECONFIG[systemd] = "--with-systemd,,,"
+PACKAGECONFIG[systemd] = "--with-systemd --with-pkgconfdir=${sysconfdir},,,"
 
 do_install () {
         oe_runmake 'DESTDIR=${D}' install
@@ -48,5 +48,3 @@ do_install () {
 	fi
 }
 
-# in case systemd support files are installed
-FILES:${PN} += "${prefix}${sysconfdir}/default/"

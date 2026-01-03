@@ -515,10 +515,14 @@ def generate_hybrid_files(
         ""
     ]
 
+    # Track added vcs_hashes to avoid duplicates when multiple modules
+    # share the same git repo/commit (e.g., errdefs and errdefs/pkg)
+    added_vcs_hashes = set()
     for mod in sorted(git_modules, key=lambda m: m['module']):
         vcs_hash = mod.get('vcs_hash', '')
-        if vcs_hash in vcs_info:
+        if vcs_hash in vcs_info and vcs_hash not in added_vcs_hashes:
             git_lines.append(vcs_info[vcs_hash]['full_line'])
+            added_vcs_hashes.add(vcs_hash)
 
     git_file = output_dir / 'go-mod-hybrid-git.inc'
     git_file.write_text('\n'.join(git_lines) + '\n')

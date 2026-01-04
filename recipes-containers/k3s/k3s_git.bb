@@ -50,6 +50,8 @@ inherit systemd
 inherit cni_networking
 inherit go-mod-discovery
 
+BB_GIT_SHALLOW = "1"
+
 COMPATIBLE_HOST = "^(?!mips).*"
 
 PACKAGECONFIG = ""

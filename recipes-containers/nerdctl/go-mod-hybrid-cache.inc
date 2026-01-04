@@ -35,4 +35,5 @@ GO_MODULE_CACHE_DATA = '[\
 {"module":"github.com/containerd/zfs/v2","version":"v2.0.0-rc.0","vcs_hash":"760d9b417b3649f7335a5437c1ddc3ce9a7d15632bcac73a7aabc3c145104a12","timestamp":"2024-10-24T13:31:35Z","subdir":"","vcs_ref":"refs/tags/v2.0.0-rc.0"},\
 {"module":"k8s.io/api","version":"v0.34.1","vcs_hash":"5c4bbd0617f6f594b275f1999f97eca8f79dbb30e908e7d6b5c7a80fd5b9b0d2","timestamp":"2025-09-10T04:39:36Z","subdir":"","vcs_ref":"refs/tags/v0.34.1"},\
 {"module":"k8s.io/apimachinery","version":"v0.34.1","vcs_hash":"9131e9ebe36078f01c5a5e8e9866300b853aa46fab527d00fc089d4c16938663","timestamp":"2025-08-16T07:57:26Z","subdir":"","vcs_ref":"refs/tags/v0.34.1"},\
+{"module":"k8s.io/client-go","version":"v0.34.1","vcs_hash":"25b2ca19570dcf36fcfa8a5388cc7647944fee1a9a445671e69704dbd6f452b5","timestamp":"2025-09-10T04:55:33Z","subdir":"","vcs_ref":"refs/tags/v0.34.1"},\
 {"module":"k8s.io/kube-openapi","version":"v0.0.0-20250710124328-f3f2b991d03b","vcs_hash":"bbdfcb1726af92c510f587baa66600e18719a63bbabc846728d7c2ff829a2146","timestamp":"2025-07-10T12:43:28Z","subdir":"","vcs_ref":""}]'

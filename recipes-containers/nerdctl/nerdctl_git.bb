@@ -49,6 +49,8 @@ inherit go goarch
 inherit systemd pkgconfig
 inherit go-mod-discovery
 
+BB_GIT_SHALLOW = "1"
+
 do_configure[noexec] = "1"
 
 EXTRA_OEMAKE = " \

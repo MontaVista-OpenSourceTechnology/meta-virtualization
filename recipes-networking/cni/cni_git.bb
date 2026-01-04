@@ -50,6 +50,8 @@ inherit go
 inherit goarch
 inherit go-mod-discovery
 
+BB_GIT_SHALLOW = "1"
+
 # https://github.com/llvm/llvm-project/issues/53999
 TOOLCHAIN = "gcc"
 

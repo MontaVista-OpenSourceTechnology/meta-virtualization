@@ -241,6 +241,35 @@ def get_repo_sizes(vcs_info: dict, workdir: Optional[Path] = None) -> dict[str, 
     return sizes
 
 
+def get_discovery_sizes(modules: list[dict], discovery_cache: Optional[Path] = None) -> dict[str, int]:
+    """Get sizes of modules from discovery cache .zip files."""
+    sizes = {}
+
+    if discovery_cache is None or not discovery_cache.exists():
+        return sizes
+
+    for mod in modules:
+        module_path = mod.get('module', '')
+        version = mod.get('version', '')
+        vcs_hash = mod.get('vcs_hash', '')
+
+        if not module_path or not version or not vcs_hash:
+            continue
+
+        # Build path to .zip file: discovery_cache/<module>/@v/<version>.zip
+        zip_path = discovery_cache / module_path / '@v' / f'{version}.zip'
+
+        if zip_path.exists():
+            try:
+                size = zip_path.stat().st_size
+                # Accumulate size by vcs_hash (same repo may have multiple modules)
+                sizes[vcs_hash] = sizes.get(vcs_hash, 0) + size
+            except OSError:
+                pass
+
+    return sizes
+
+
 def format_size(size_bytes: int) -> str:
     """Format bytes as human readable."""
     for unit in ['B', 'KB', 'MB', 'GB']:
@@ -604,6 +633,9 @@ def main():
     parser.add_argument('--workdir', type=Path, default=None,
                         help='BitBake workdir containing vcs_cache (for size calculations)')
 
+    parser.add_argument('--discovery-cache', type=Path, default=None,
+                        help='Discovery cache directory containing module .zip files (for size calculations)')
+
     # Actions
     parser.add_argument('--list', action='store_true',
                         help='List all modules with sizes')
@@ -650,12 +682,20 @@ def main():
     vcs_info = parse_go_mod_git_inc(git_inc)
     print(f"  Found {len(vcs_info)} VCS entries")
 
-    # Get sizes if workdir provided
+    # Get sizes from discovery cache and/or workdir
     sizes = {}
+    if args.discovery_cache:
+        print(f"Calculating sizes from discovery cache {args.discovery_cache}...")
+        sizes = get_discovery_sizes(modules, args.discovery_cache)
+        print(f"  Got sizes for {len(sizes)} modules from discovery cache")
+
     if args.workdir:
         print(f"Calculating sizes from {args.workdir}...")
-        sizes = get_repo_sizes(vcs_info, args.workdir)
-        print(f"  Got sizes for {len(sizes)} repos")
+        vcs_sizes = get_repo_sizes(vcs_info, args.workdir)
+        print(f"  Got sizes for {len(vcs_sizes)} repos from vcs_cache")
+        # Merge vcs_sizes into sizes (vcs_cache sizes override discovery if both exist)
+        for k, v in vcs_sizes.items():
+            sizes[k] = v
 
     # Handle actions
     if args.list:

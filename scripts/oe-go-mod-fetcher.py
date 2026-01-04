@@ -815,7 +815,10 @@ def verify_commit_accessible(vcs_url: str, commit: str, ref_hint: str = "", vers
         # Strategy depends on whether this is a tagged version or pseudo-version
         commit_fetched = commit_present  # If already present, no need to fetch
 
-        if ref_hint and not commit_present:
+        # Only use shallow fetch for actual tags - pseudo-versions with branch refs need unshallow
+        is_tag_ref = ref_hint and ref_hint.startswith('refs/tags/')
+
+        if is_tag_ref and not commit_present:
             # Tagged version: try shallow fetch of the specific commit (only if not already present)
             try:
                 fetch_cmd = ["git", "fetch", "--depth=1", "origin", commit]
@@ -3924,9 +3927,9 @@ def generate_recipe(modules: List[Dict], source_dir: Path, output_dir: Optional[
         else:
             commit_sha = repo_info['commits'][commit_hash]['commit_sha']
 
+        # Trust the ref_hint from discovery - it will be validated/corrected during
+        # the verification pass if needed (e.g., force-pushed tags are auto-corrected)
         ref_hint = module.get('vcs_ref', '')
-        if ref_hint and not _ref_points_to_commit(vcs_url, ref_hint, commit_hash):
-            ref_hint = ''
 
         entry = repo_info['commits'][commit_hash]
         entry['modules'].append(module)
@@ -4080,7 +4083,9 @@ def generate_recipe(modules: List[Dict], source_dir: Path, output_dir: Optional[
                 # For branches, use the branch name directly
                 if ref_hint.startswith('refs/tags/'):
                     # Tags: BitBake can fetch tagged commits with nobranch=1
-                    branch_param = ';nobranch=1'
+                    # Add tag= so shallow clones include this tag (with BB_GIT_SHALLOW=1 in recipe)
+                    tag_name = ref_hint[10:]  # Strip "refs/tags/"
+                    branch_param = f';nobranch=1;tag={tag_name}'
                 elif ref_hint.startswith('refs/heads/'):
                     # Branches: use the actual branch name
                     branch_name = ref_hint[11:]  # Strip "refs/heads/"
@@ -4161,21 +4166,10 @@ def generate_recipe(modules: List[Dict], source_dir: Path, output_dir: Optional[
             f.write(f'SRC_URI += "{entry}"\n')
         f.write('\n')
 
-        # Collect all tag references for shallow cloning
-        # BB_GIT_SHALLOW_EXTRA_REFS ensures these refs are included in shallow clones
-        tag_refs = set()
-        for module in modules:
-            vcs_ref = module.get('vcs_ref', '')
-            if vcs_ref and 'refs/tags/' in vcs_ref:
-                tag_refs.add(vcs_ref)
-
-        if tag_refs:
-            f.write("# Tag references for shallow cloning\n")
-            f.write("# Ensures shallow clones include all necessary tags\n")
-            f.write("BB_GIT_SHALLOW_EXTRA_REFS = \"\\\n")
-            for tag_ref in sorted(tag_refs):
-                f.write(f"    {tag_ref} \\\n")
-            f.write('"\n')
+        # Note: BB_GIT_SHALLOW_EXTRA_REFS is NOT used here because those refs must be
+        # present in ALL repositories, which isn't the case for module dependencies.
+        # Instead, we use tag= in individual SRC_URI entries when the ref is a tag.
+        # The recipe should set BB_GIT_SHALLOW = "1" to enable shallow clones globally.
 
         # Note: SRCREV_* variables are not needed since rev= is embedded directly in SRC_URI
 

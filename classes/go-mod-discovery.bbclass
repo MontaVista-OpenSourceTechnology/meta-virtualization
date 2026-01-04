@@ -117,6 +117,11 @@ GO_MOD_DISCOVERY_GIT_REF ?= "${SRCREV}"
 # Recipe directory for generated .inc files - defaults to recipe's directory
 GO_MOD_DISCOVERY_RECIPEDIR ?= "${FILE_DIRNAME}"
 
+# Skip commit verification during generation (use cached results only)
+# Set to "1" to skip verification on retries after initial discovery
+# Usage: GO_MOD_DISCOVERY_SKIP_VERIFY = "1" in local.conf or recipe
+GO_MOD_DISCOVERY_SKIP_VERIFY ?= ""
+
 # Empty default for TAGS if not set by recipe (avoids undefined variable errors)
 TAGS ?= ""
 
@@ -384,11 +389,19 @@ Or run 'bitbake ${PN} -c show_upgrade_commands' to see manual options."
         bbfatal "Could not find oe-go-mod-fetcher.py in any layer"
     fi
 
+    # Build fetcher command with optional flags
+    SKIP_VERIFY_FLAG=""
+    if [ "${GO_MOD_DISCOVERY_SKIP_VERIFY}" = "1" ]; then
+        echo "NOTE: Skipping commit verification (GO_MOD_DISCOVERY_SKIP_VERIFY=1)"
+        SKIP_VERIFY_FLAG="--skip-verify"
+    fi
+
     python3 "${FETCHER_SCRIPT}" \
         --discovered-modules "${GO_MOD_DISCOVERY_MODULES_JSON}" \
         --git-repo "${GO_MOD_DISCOVERY_GIT_REPO}" \
         --git-ref "${GO_MOD_DISCOVERY_GIT_REF}" \
-        --recipedir "${GO_MOD_DISCOVERY_RECIPEDIR}"
+        --recipedir "${GO_MOD_DISCOVERY_RECIPEDIR}" \
+        ${SKIP_VERIFY_FLAG}
 
     if [ $? -eq 0 ]; then
         echo ""
@@ -411,6 +424,70 @@ addtask generate_modules
 do_generate_modules[nostamp] = "1"
 do_generate_modules[vardeps] += "GO_MOD_DISCOVERY_MODULES_JSON GO_MOD_DISCOVERY_GIT_REPO \
     GO_MOD_DISCOVERY_GIT_REF GO_MOD_DISCOVERY_RECIPEDIR"
+do_generate_modules[postfuncs] = "do_show_hybrid_recommendation"
+
+# Show hybrid conversion recommendations after VCS generation
+python do_show_hybrid_recommendation() {
+    """
+    Show recommendations for converting to hybrid gomod:// + git:// mode.
+    Runs automatically after generate_modules completes.
+    """
+    import subprocess
+    from pathlib import Path
+
+    recipedir = d.getVar('GO_MOD_DISCOVERY_RECIPEDIR')
+    git_inc = Path(recipedir) / 'go-mod-git.inc'
+
+    if not git_inc.exists():
+        return
+
+    # Find the hybrid script
+    layerdir = None
+    for layer in d.getVar('BBLAYERS').split():
+        if 'meta-virtualization' in layer:
+            layerdir = layer
+            break
+
+    if not layerdir:
+        return
+
+    scriptpath = Path(layerdir) / "scripts" / "oe-go-mod-fetcher-hybrid.py"
+    if not scriptpath.exists():
+        return
+
+    bb.plain("")
+    bb.plain("=" * 70)
+    bb.plain("HYBRID MODE RECOMMENDATION")
+    bb.plain("=" * 70)
+
+    cmd = ['python3', str(scriptpath), '--recipedir', recipedir, '--recommend']
+
+    # Try to find module sizes from discovery cache or vcs_cache
+    discovery_dir = d.getVar('GO_MOD_DISCOVERY_DIR')
+    workdir = d.getVar('WORKDIR')
+
+    # Check discovery cache first (has .zip files with accurate sizes)
+    if discovery_dir:
+        discovery_cache = Path(discovery_dir) / 'cache' / 'cache' / 'download'
+        if discovery_cache.exists():
+            cmd.extend(['--discovery-cache', str(discovery_cache)])
+
+    # Also check vcs_cache if it exists (from a previous build)
+    if workdir:
+        vcs_cache = Path(workdir) / 'sources' / 'vcs_cache'
+        if vcs_cache.exists():
+            cmd.extend(['--workdir', workdir])
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        if result.stdout:
+            for line in result.stdout.splitlines():
+                bb.plain(line)
+            bb.plain("")
+            bb.plain("")
+    except Exception as e:
+        bb.note(f"Could not run hybrid recommendation: {e}")
+}
 
 # =============================================================================
 # TASK 4: do_discover_and_generate - All-in-one convenience task
@@ -443,7 +520,7 @@ addtask discover_and_generate after do_unpack
 do_discover_and_generate[depends] = "${PN}:do_prepare_recipe_sysroot"
 do_discover_and_generate[network] = "1"
 do_discover_and_generate[nostamp] = "1"
-do_discover_and_generate[postfuncs] = "do_discover_modules do_extract_modules do_generate_modules"
+do_discover_and_generate[postfuncs] = "do_discover_modules do_extract_modules do_generate_modules do_show_hybrid_recommendation"
 
 # =============================================================================
 # TASK: do_clean_discovery - Clean the persistent cache

@@ -46,7 +46,7 @@ DESCRIPTION = "Linux container runtime \
 
 SRCREV_moby = "f417435e5f6216828dec57958c490c4f8bae4f98"
 SRCREV_libnetwork = "3797618f9a38372e8107d8c06f6ae199e1133ae8"
-SRCREV_cli = "01f933261885c0126edb3f47fd56d048ae31265a"
+SRCREV_cli = "43987fca488a535d810c429f75743d8c7b63bf4f"
 SRCREV_FORMAT = "moby_libnetwork"
 SRC_URI = "\
 	git://github.com/moby/moby.git;branch=25.0;name=moby;protocol=https \

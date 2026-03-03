@@ -7,6 +7,7 @@ SRC_URI = " \
     git://xenbits.xen.org/xen.git;branch=${XEN_BRANCH} \
     file://0001-menuconfig-mconf-cfg-Allow-specification-of-ncurses-location.patch \
     file://0001-libxl_nocpuid-fix-build-error.patch \
+    file://0001-ARM-Drop-ThumbEE-support.patch \
     "
 
 LIC_FILES_CHKSUM ?= "file://COPYING;md5=d1a1e216f80b6d8da95fec897d0dbec9"

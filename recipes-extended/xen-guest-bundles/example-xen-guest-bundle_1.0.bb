@@ -26,7 +26,10 @@ DESCRIPTION = "Demonstrates xen-guest-bundle.bbclass by bundling the \
 LICENSE = "MIT"
 LIC_FILES_CHKSUM = "file://${COMMON_LICENSE_DIR}/MIT;md5=0835ade698e0bcf8506ecda2f7b4f302"
 
-inherit xen-guest-bundle
+inherit xen-guest-bundle features_check
+
+# matches xen-guest-image-minimal recipe
+REQUIRED_DISTRO_FEATURES += "${@bb.utils.contains('IMAGE_FEATURES', 'x11', ' x11', '', d)} xen"
 
 # Define guests to bundle
 # Format: recipe-name[:autostart][:external]

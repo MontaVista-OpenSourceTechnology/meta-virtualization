@@ -638,4 +638,4 @@ FILES:${PN} = "${datadir}/xen-guest-bundles"
 
 # Guest rootfs images are binary filesystem images that contain build paths
 # internally (normal for ext4/etc images) and can be large
-INSANE_SKIP:${PN} += "installed-vs-shipped buildpaths"
+INSANE_SKIP:${PN} += "buildpaths"

@@ -8,3 +8,6 @@
 # match the other configs of the layer and in case the above statement isn't
 # always true in the future.
 include ${@bb.utils.contains('DISTRO_FEATURES', 'virtualization', '${META_VIRT_CONTAINER_CONFIG_PATH}', '${META_VIRT_CONTAINER_CONFIG_PATH}', d)}
+
+# Register custom IMAGE_FEATURES only when container features are enabled
+IMAGE_FEATURES[validitems] += "${@bb.utils.contains_any('DISTRO_FEATURES', 'vcontainer virtualization', 'container-registry', '', d)}"

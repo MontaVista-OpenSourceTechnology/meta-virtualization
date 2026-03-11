@@ -13,7 +13,7 @@ DEPENDS += "cockpit"
 SRC_URI = "https://github.com/cockpit-project/cockpit-machines/releases/download/${PV}/cockpit-machines-${PV}.tar.xz"
 SRC_URI[sha256sum] = "c9d80357da2bf3ecda9698f0dc6fcb46675b3b76da9150a22178071fe982fcb0"
 
-S = "${WORKDIR}/${PN}"
+S = "${UNPACKDIR}/${PN}"
 
 inherit autotools-brokensep features_check gettext
 
@@ -29,3 +29,6 @@ FILES:${PN} = "\
     ${prefix}/local/ \
     ${datadir}/metainfo/org.cockpit-project.cockpit-machines.metainfo.xml \
 "
+
+SKIP_RECIPE[cockpit-machines] ?= "${@bb.utils.contains('BBFILE_COLLECTIONS', 'webserver', '', 'Depends on meta-webserver which is not included', d)}"
+

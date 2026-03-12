@@ -9,4 +9,4 @@
 # The layer.conf propagates virtualization to DISTRO_FEATURES_NATIVE when
 # vcontainer or virtualization is in the target DISTRO_FEATURES.
 
-PACKAGECONFIG:append = " ${@bb.utils.contains('DISTRO_FEATURES_NATIVE', 'virtualization', 'virtfs', '', d)}"
+PACKAGECONFIG:append = "${@bb.utils.contains('DISTRO_FEATURES_NATIVE', 'virtualization', ' virtfs', '', d)}"

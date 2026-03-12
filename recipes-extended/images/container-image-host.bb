@@ -84,10 +84,9 @@ REQUIRED_DISTRO_FEATURES:append = " ${@bb.utils.contains('VIRTUAL-RUNTIME_contai
 # of the host name to make it unique
 IMAGE_FEATURES[validitems] += "virt-unique-hostname"
 IMAGE_FEATURES[validitems] += "container-tools"
-IMAGE_FEATURES[validitems] += "container-registry"
-
 # Container registry configuration packages (opt-in via IMAGE_FEATURES += "container-registry")
 # Requires CONTAINER_REGISTRY_URL and/or DOCKER_REGISTRY_INSECURE to be set
+# (overrides empty default from meta-virt-container.inc)
 FEATURE_PACKAGES_container-registry = "\
     ${@bb.utils.contains_any('VIRTUAL-RUNTIME_container_engine', 'docker docker-moby', 'docker-registry-config', '', d)} \
     ${@bb.utils.contains_any('VIRTUAL-RUNTIME_container_engine', 'podman containerd cri-o', 'container-oci-registry-config', '', d)} \

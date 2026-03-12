@@ -23,6 +23,10 @@ PV = "v1.24.0+git"
 
 inherit autotools-brokensep pkgconfig features_check
 
+# crun ships a GNUmakefile that aborts if ./configure hasn't run yet,
+# which breaks autotools_preconfigure's "make clean" on rebuild.
+CLEANBROKEN = "1"
+
 # if this is true, we'll symlink crun to runc for easier integration
 # with container stacks
 CRUN_AS_RUNC ?= "true"

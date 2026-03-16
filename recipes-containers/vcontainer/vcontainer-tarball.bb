@@ -27,6 +27,9 @@ HOMEPAGE = "https://git.yoctoproject.org/meta-virtualization/"
 LICENSE = "MIT"
 LIC_FILES_CHKSUM = "file://${COMMON_LICENSE_DIR}/MIT;md5=0835ade698e0bcf8506ecda2f7b4f302"
 
+# file:// SRC_URI entries land directly in UNPACKDIR, not a subdirectory
+S = "${UNPACKDIR}"
+
 # Use our custom SDK installer template with vcontainer-specific messages
 FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
 TOOLCHAIN_SHAR_EXT_TMPL = "${THISDIR}/files/toolchain-shar-extract.sh"

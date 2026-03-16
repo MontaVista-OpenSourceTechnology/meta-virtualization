@@ -178,6 +178,13 @@ PACKAGECONFIG[libpcap] = "-Dlibpcap=enabled, -Dlibpcap=disabled,libpcap,libpcap"
 PACKAGECONFIG[numad] = "-Dnumad=enabled, -Dnumad=disabled,"
 PACKAGECONFIG[nftables] = ""
 
+CVE_STATUS[CVE-2014-8135] = "fixed-version: Fixed in 1.2.11, NVD tracks this as version-less vulnerability"
+CVE_STATUS[CVE-2014-8136] = "fixed-version: Fixed in 1.2.11, NVD tracks this as version-less vulnerability"
+CVE_STATUS[CVE-2015-5313] = "fixed-version: Fixed in 1.3.1, NVD tracks this as version-less vulnerability"
+CVE_STATUS[CVE-2018-5748] = "fixed-version: Fixed in 4.0.0, NVD tracks this as version-less vulnerability"
+CVE_STATUS[CVE-2018-6764] = "fixed-version: Fixed in 4.1.0, NVD tracks this as version-less vulnerability"
+CVE_STATUS[CVE-2023-3750] = "fixed-version: Fixed in 9.6.0, NVD tracks this as version-less vulnerability"
+
 # Enable the Python tool support
 require libvirt-python.inc
 

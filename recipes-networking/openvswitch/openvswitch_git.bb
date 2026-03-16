@@ -35,6 +35,8 @@ PACKAGECONFIG[dpdk] = "--with-dpdk=shared,,dpdk,dpdk"
 PACKAGECONFIG[libcap-ng] = "--enable-libcapng,--disable-libcapng,libcap-ng,"
 PACKAGECONFIG[ssl] = ",--disable-ssl,openssl,"
 
+CVE_STATUS[CVE-2023-5366] = "fixed-version: Fixed in 3.2.2, NVD tracks this as version-less vulnerability"
+
 # Don't compile kernel modules by default since it heavily depends on
 # kernel version. Use the in-kernel module for now.
 # distro layers can enable with EXTRA_OECONF_pn_openvswitch += ""

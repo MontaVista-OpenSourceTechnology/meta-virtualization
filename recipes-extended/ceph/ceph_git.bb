@@ -204,3 +204,6 @@ INSANE_SKIP:${PN}-dbg += "buildpaths"
 CCACHE_DISABLE = "1"
 
 CVE_PRODUCT = "ceph ceph_storage ceph_storage_mon ceph_storage_osd"
+
+CVE_STATUS[CVE-2017-7519] = "fixed-version: Fixed in 12.1.2, NVD tracks this as version-less vulnerability"
+CVE_STATUS[CVE-2020-1700] = "fixed-version: Fixed in 15.1.1, NVD tracks this as version-less vulnerability"

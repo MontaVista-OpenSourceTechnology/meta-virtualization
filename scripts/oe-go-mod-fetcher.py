@@ -3929,7 +3929,14 @@ def generate_recipe(modules: List[Dict], source_dir: Path, output_dir: Optional[
 
         # Trust the ref_hint from discovery - it will be validated/corrected during
         # the verification pass if needed (e.g., force-pushed tags are auto-corrected)
+        # BUT: for pseudo-versions, Go's Origin.Ref is the "nearest tag" used to derive
+        # the pseudo-version, NOT a tag that points to this commit. Using it as a tag=
+        # in SRC_URI causes BitBake to resolve the tag to a different commit and fail.
         ref_hint = module.get('vcs_ref', '')
+        version = module.get('version', '')
+        if ref_hint and parse_pseudo_version_tag(version):
+            # Pseudo-version: the vcs_ref is the base tag, not a ref pointing to this commit
+            ref_hint = ''
 
         entry = repo_info['commits'][commit_hash]
         entry['modules'].append(module)
@@ -3951,6 +3958,9 @@ def generate_recipe(modules: List[Dict], source_dir: Path, output_dir: Optional[
             vcs_url = module['vcs_url']
             commit_hash = module['vcs_hash']
             ref_hint = module.get('vcs_ref', '')
+            # For pseudo-versions, vcs_ref is the nearest tag, not a ref pointing to this commit
+            if ref_hint and parse_pseudo_version_tag(module.get('version', '')):
+                ref_hint = ''
 
             print(f"  • verifying [{index}/{total_modules}] {module['module_path']}@{module['version']} -> {commit_hash[:12]}")
 

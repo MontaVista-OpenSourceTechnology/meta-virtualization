@@ -4,21 +4,20 @@ HOMEPAGE = "https://k3s.io/"
 LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://${S}/src/import/LICENSE;md5=2ee41112a44fe7014dce33e26468ba93"
 
-SRC_URI = "git://github.com/rancher/k3s.git;branch=release-1.34;name=k3s;protocol=https;destsuffix=${GO_SRCURI_DESTSUFFIX} \
+SRC_URI = "git://github.com/rancher/k3s.git;branch=release-1.35;name=k3s;protocol=https;destsuffix=${GO_SRCURI_DESTSUFFIX} \
            file://k3s.service \
            file://k3s-agent.service \
            file://k3s-agent \
            file://k3s-clean \
            file://cni-containerd-net.conf \
-           file://0001-Finding-host-local-in-usr-libexec.patch;patchdir=src/import \
            file://k3s-killall.sh \
           "
 
 SRC_URI[k3s.md5sum] = "363d3a08dc0b72ba6e6577964f6e94a5"
-SRCREV_k3s = "54f28d21a6208b1f8f9c33e14cf1fc65c2030107"
+SRCREV_k3s = "4841276da0cf9f6f3e323b6cc8b10da381331f98"
 
 SRCREV_FORMAT = "k3s_fuse"
-PV = "v1.34.1+k3s1+git"
+PV = "v1.35.2+k3s1+git"
 
 CNI_NETWORKING_FILES ?= "${UNPACKDIR}/cni-containerd-net.conf"
 

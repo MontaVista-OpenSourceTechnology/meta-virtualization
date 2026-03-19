@@ -130,7 +130,7 @@ SYSTEMD_SERVICE:${PN}-libvirtd = " \
 
 # full config
 PACKAGECONFIG ??= "gnutls qemu openvz vmware vbox esx lxc test remote \
-                   libvirtd netcf udev python fuse firewalld libpcap \
+                   libvirtd udev python fuse firewalld libpcap \
                    ${@bb.utils.contains('DISTRO_FEATURES', 'selinux', 'selinux audit libcap-ng', '', d)} \
                    ${@bb.utils.contains('DISTRO_FEATURES', 'xen', 'libxl', '', d)} \
                    ${@bb.utils.contains('DISTRO_FEATURES', 'polkit', 'polkit', '', d)} \

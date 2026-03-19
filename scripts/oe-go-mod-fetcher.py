@@ -2079,6 +2079,7 @@ def _execute(args: argparse.Namespace) -> int:
         debug_limit=debug_limit,
         skip_verify=args.skip_verify,
         verify_jobs=args.verify_jobs,
+        exclude_modules=args.exclude_module,
     )
 
     if success:
@@ -3869,7 +3870,7 @@ def discover_modules(source_dir: Path, gomodcache: Optional[str] = None) -> List
 def generate_recipe(modules: List[Dict], source_dir: Path, output_dir: Optional[Path],
                    git_repo: str, git_ref: str, validate_only: bool = False,
                    debug_limit: Optional[int] = None, skip_verify: bool = False,
-                   verify_jobs: int = 10) -> bool:
+                   verify_jobs: int = 10, exclude_modules: Optional[List[str]] = None) -> bool:
     """
     Phase 2: Recipe Generation
 
@@ -3896,6 +3897,17 @@ def generate_recipe(modules: List[Dict], source_dir: Path, output_dir: Optional[
         return hashlib.sha256(f"{repo_key}:{commit}".encode()).hexdigest()
 
     unresolved_commits: List[Tuple[str, str, str, str, str]] = []
+
+    # Filter out excluded modules (e.g., deleted upstream repos that must use gomod://)
+    if exclude_modules:
+        before_count = len(modules)
+        excluded_prefixes = [e.strip() for e in exclude_modules]
+        modules = [m for m in modules if not any(
+            m.get('module_path', '').startswith(prefix) for prefix in excluded_prefixes
+        )]
+        excluded_count = before_count - len(modules)
+        if excluded_count:
+            print(f"\n⚙️  Excluded {excluded_count} modules matching: {', '.join(excluded_prefixes)}")
 
     total_modules = len(modules)
     if debug_limit is not None:
@@ -4515,6 +4527,13 @@ Examples:
         nargs=1,
         action="append",
         help="Remove a previously pinned repository override (module or module@version)"
+    )
+
+    parser.add_argument(
+        "--exclude-module",
+        metavar="PREFIX",
+        action="append",
+        help="Exclude modules matching PREFIX from git:// generation (use gomod:// in recipe instead)"
     )
 
     parser.add_argument(

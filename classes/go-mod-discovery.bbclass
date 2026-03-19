@@ -122,6 +122,11 @@ GO_MOD_DISCOVERY_RECIPEDIR ?= "${FILE_DIRNAME}"
 # Usage: GO_MOD_DISCOVERY_SKIP_VERIFY = "1" in local.conf or recipe
 GO_MOD_DISCOVERY_SKIP_VERIFY ?= ""
 
+# Modules to exclude from git:// generation (space-separated prefixes)
+# Excluded modules must be fetched via gomod:// in the recipe's SRC_URI
+# Usage: GO_MOD_VCS_EXCLUDE = "github.com/vtolstov/go-ioctl"
+GO_MOD_VCS_EXCLUDE ?= ""
+
 # Empty default for TAGS if not set by recipe (avoids undefined variable errors)
 TAGS ?= ""
 
@@ -396,12 +401,18 @@ Or run 'bitbake ${PN} -c show_upgrade_commands' to see manual options."
         SKIP_VERIFY_FLAG="--skip-verify"
     fi
 
+    EXCLUDE_FLAGS=""
+    for mod in ${GO_MOD_VCS_EXCLUDE}; do
+        EXCLUDE_FLAGS="${EXCLUDE_FLAGS} --exclude-module ${mod}"
+    done
+
     python3 "${FETCHER_SCRIPT}" \
         --discovered-modules "${GO_MOD_DISCOVERY_MODULES_JSON}" \
         --git-repo "${GO_MOD_DISCOVERY_GIT_REPO}" \
         --git-ref "${GO_MOD_DISCOVERY_GIT_REF}" \
         --recipedir "${GO_MOD_DISCOVERY_RECIPEDIR}" \
-        ${SKIP_VERIFY_FLAG}
+        ${SKIP_VERIFY_FLAG} \
+        ${EXCLUDE_FLAGS}
 
     if [ $? -eq 0 ]; then
         echo ""

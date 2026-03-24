@@ -26,9 +26,9 @@ RDEPENDS:libvirt-libvirtd:append:aarch64 = " dmidecode"
 #connman blocks the 53 port and libvirtd can't start its DNS service
 RCONFLICTS:${PN}_libvirtd = "connman"
 
-SRCREV_libvirt = "2df30bca10b1e1b9e6d275a44f2725321cd55f22"
+SRCREV_libvirt = "9fa6beff05728a32dd11f7ccb7e3c97fca510029"
 
-LIBVIRT_VERSION = "11.10.0"
+LIBVIRT_VERSION = "12.1.0"
 PV = "v${LIBVIRT_VERSION}+git"
 
 SRC_URI = "gitsm://github.com/libvirt/libvirt.git;name=libvirt;protocol=https;branch=master \
@@ -40,7 +40,6 @@ SRC_URI = "gitsm://github.com/libvirt/libvirt.git;name=libvirt;protocol=https;br
            file://libvirt-qemu.conf \
            file://0001-prevent-gendispatch.pl-generating-build-path-in-code.patch \
            file://0001-messon.build-remove-build-path-information-to-avoid-.patch \
-           file://0001-meson.build-clear-abs_top_builddir-to-avoid-QA-warni.patch \
            file://0001-tests-meson-clear-absolute-directory-paths.patch \
            file://0001-qemu_nbdkit.c-use-llu-to-print-time_t.patch \
           "

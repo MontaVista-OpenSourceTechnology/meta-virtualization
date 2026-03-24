@@ -18,7 +18,6 @@ PACKAGECONFIG[systemd] = "--enable-systemd,--disable-systemd,systemd,"
 PACKAGECONFIG[externalblktap] = ",,,"
 
 DEPENDS = " \
-    ${@bb.utils.contains('XEN_TARGET_ARCH', 'x86_64', 'dev86-native', '', d)} \
     bison-native \
     flex-native \
     file-native \

@@ -793,6 +793,7 @@ EXTRA_OECONF += " \
     --with-initddir=${INIT_D_DIR} \
     --with-sysconfig-leaf-dir=default \
     --with-system-qemu=${bindir}/${QEMU_SYSTEM} \
+    --disable-rombios \
     "
 
 do_configure() {

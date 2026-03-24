@@ -20,6 +20,9 @@ DEPENDS = "libcap ncurses lua"
 EXTRA_OECONF = "--disable-auth \
                 --with-systemdsystemunitdir=${systemd_unitdir}/system"
 
+# GCC 15 is stricter about const qualifiers; upstream uses -Werror
+CFLAGS += "-Wno-error=discarded-qualifiers"
+
 inherit autotools pkgconfig systemd
 
 do_install:append () {

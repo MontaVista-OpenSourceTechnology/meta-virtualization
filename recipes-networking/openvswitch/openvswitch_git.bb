@@ -13,13 +13,13 @@ RDEPENDS:${PN}-ptest += "\
 	python3-resource findutils which diffutils \
 	"
 
-PV = "3.5.0"
+PV = "3.7.0"
 CVE_VERSION = "3.5.0"
 
 FILESEXTRAPATHS:append := "${THISDIR}/${PN}-git:"
 
-SRCREV = "445594155310a881ea4a269e2a424a870a89402c"
-SRC_URI += "git://github.com/openvswitch/ovs.git;protocol=https;branch=branch-3.5 \
+SRCREV = "0d4c78e153d2b22ab1b173cd4a4dfff89002666d"
+SRC_URI += "git://github.com/openvswitch/ovs.git;protocol=https;branch=branch-3.7 \
             file://openvswitch-add-ptest-71d553b995d0bd527d3ab1e9fbaf5a2ae34de2f3.patch \
             file://run-ptest \
             file://disable_m4_check.patch \

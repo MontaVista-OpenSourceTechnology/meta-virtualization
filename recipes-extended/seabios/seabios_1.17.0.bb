@@ -15,7 +15,7 @@ S = "${UNPACKDIR}/${PN}-${PV}"
 LIC_FILES_CHKSUM = "file://COPYING;md5=d32239bcb673463ab874e80d47fae504         \
                     file://COPYING.LESSER;md5=6a6a8e020838b23406c81b19c1d46df6  \
                     "
-SRC_URI[sha256sum] = "d44d8e97ad56f3fd23ed3076077a770d37a5e7bae22daa59656ff41c3334fb34"
+SRC_URI[sha256sum] = "5159a35fac5c1579dd5d702001033c826ce45d30d3bd657ec1b2695455997712"
 
 FILES:${PN} = "/usr/share/firmware"
 

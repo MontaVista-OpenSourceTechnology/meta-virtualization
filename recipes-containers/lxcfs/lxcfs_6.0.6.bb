@@ -11,8 +11,7 @@ SRC_URI = " \
 "
 
 LIC_FILES_CHKSUM = "file://COPYING;md5=29ae50a788f33f663405488bc61eecb1"
-SRC_URI[md5sum] = "00a6632e094d0a2f2308c8365ac91912"
-SRC_URI[sha256sum] = "c2b361edc881d5ca8fa2cd3260a4999b8f87afce8d937be2160e5cf0b482c52f"
+SRC_URI[sha256sum] = "386339ba4cde289b0f6df4fe7a614caa1e45dd91bc0200b4aff6c51bf9d5ef9e"
 
 DEPENDS += "fuse python3-jinja2-native help2man-native systemd"
 RDEPENDS:${PN} += "fuse"

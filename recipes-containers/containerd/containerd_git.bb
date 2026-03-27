@@ -105,3 +105,6 @@ RDEPENDS:${PN} += " ${VIRTUAL-RUNTIME_container_runtime}"
 ## configured in the distro, since we may have collisions.
 CNI_NETWORKING_FILES ?= "${UNPACKDIR}/cni-containerd-net.conflist"
 inherit cni_networking
+
+# Add CVE_PRODUCT to match the NVD CPE product name
+CVE_PRODUCT = "linuxfoundation:containerd"

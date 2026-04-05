@@ -47,6 +47,8 @@ inherit core-image
 # We need Docker and container tools
 # Note: runc is explicitly listed because vruntime distro sets
 # VIRTUAL-RUNTIME_container_runtime="" to avoid runc/crun conflicts.
+# Note: skopeo is required inside the guest for batch import
+# (skopeo copy oci:... containers-storage:...).
 IMAGE_INSTALL = " \
     packagegroup-core-boot \
     docker-moby \

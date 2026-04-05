@@ -956,11 +956,15 @@ if [ "$BATCH_IMPORT" = "true" ]; then
         fi
     done
 
-    # Add final images command to show what was imported
+    # Show what was imported (informational only).
+    # IMPORTANT: Must not use 'exit' — the command runs inside PID 1 init's
+    # eval, and exit kills init → kernel panic. The import chain runs in a
+    # subshell so its exit code is captured without risk. The images listing
+    # is best-effort and doesn't affect the result.
     if [ "$RUNTIME" = "docker" ]; then
-        COMPOUND_CMD="$COMPOUND_CMD && docker images"
+        COMPOUND_CMD="( $COMPOUND_CMD ); docker images 2>/dev/null; true"
     else
-        COMPOUND_CMD="$COMPOUND_CMD && podman images"
+        COMPOUND_CMD="( $COMPOUND_CMD ); podman images 2>/dev/null; true"
     fi
 
     log "DEBUG" "Batch command: $COMPOUND_CMD"

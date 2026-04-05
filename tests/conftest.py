@@ -226,6 +226,14 @@ def pytest_addoption(parser):
         default=24.0,
         help="Max rootfs age in hours before warning (default: 24)",
     )
+    # K3s options
+    parser.addoption(
+        "--k3s-timeout",
+        action="store",
+        type=int,
+        default=300,
+        help="Timeout in seconds for k3s readiness (default: 300)",
+    )
     # Container registry options
     parser.addoption(
         "--registry-url",
@@ -588,6 +596,12 @@ def pytest_configure(config):
     )
     config.addinivalue_line(
         "markers", "boot: marks tests that boot a QEMU image (requires built image)"
+    )
+    config.addinivalue_line(
+        "markers", "k3s: marks k3s runtime tests"
+    )
+    config.addinivalue_line(
+        "markers", "multinode: marks multi-node tests (requires two QEMU VMs)"
     )
 
 

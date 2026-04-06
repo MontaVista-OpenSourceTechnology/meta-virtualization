@@ -9,7 +9,7 @@ SRC_URI = "git://github.com/rancher/k3s.git;branch=release-1.35;name=k3s;protoco
            file://k3s-agent.service \
            file://k3s-agent \
            file://k3s-clean \
-           file://cni-containerd-net.conf \
+           file://cni-flannel.conflist \
            file://k3s-killall.sh \
           "
 
@@ -19,7 +19,8 @@ SRCREV_k3s = "4841276da0cf9f6f3e323b6cc8b10da381331f98"
 SRCREV_FORMAT = "k3s_fuse"
 PV = "v1.35.2+k3s1+git"
 
-CNI_NETWORKING_FILES ?= "${UNPACKDIR}/cni-containerd-net.conf"
+# K3s uses flannel for CNI networking, not the containerd bridge config
+CNI_NETWORKING_FILES ?= "${UNPACKDIR}/cni-flannel.conflist"
 
 # Build tags - used by both do_compile and do_discover_modules
 TAGS = "static_build netcgo osusergo providerless"
@@ -116,6 +117,10 @@ do_install() {
 
 	mkdir -p ${D}${datadir}/k3s/
 	install -m 0755 ${S}/src/import/contrib/util/check-config.sh ${D}${datadir}/k3s/
+
+	# Create server manifests directory — k3s expects this at startup for
+	# auto-deploying system components (coredns, traefik, etc.)
+	install -d "${D}/var/lib/rancher/k3s/server/manifests"
 }
 
 PACKAGES =+ "${PN}-server ${PN}-agent"

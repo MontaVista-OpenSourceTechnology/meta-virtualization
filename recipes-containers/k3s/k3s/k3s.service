@@ -34,7 +34,7 @@ ExecStartPre=-/sbin/modprobe overlay
 # Create flannel subnet.env if not present — k3s's embedded flannel
 # controller expects this file for CNI plugin configuration
 ExecStartPre=/bin/sh -c 'mkdir -p /run/flannel && test -f /run/flannel/subnet.env || echo "FLANNEL_NETWORK=10.42.0.0/16\nFLANNEL_SUBNET=10.42.0.1/24\nFLANNEL_MTU=1450\nFLANNEL_IPMASQ=true" > /run/flannel/subnet.env'
-ExecStart=/usr/local/bin/k3s server --disable-cloud-controller
+ExecStart=/usr/local/bin/k3s server
 # Avoid any delay due to this service when the system is rebooting or shutting
 # down by using the k3s-killall.sh script to kill all of the running k3s
 # services and containers

@@ -111,6 +111,22 @@ class K3sRunner:
         self.booted = False
         self._rootfs_copy = None
 
+    def _find_native_qemu(self, qemu_bin):
+        """Find the native QEMU binary from the build directory."""
+        native_dir = (
+            self.build_dir / "tmp" / "sysroots-components" / "x86_64"
+            / "qemu-system-native" / "usr" / "bin")
+        qemu_path = native_dir / qemu_bin
+        if qemu_path.exists():
+            return str(qemu_path)
+        # Fallback: check PATH
+        import shutil
+        found = shutil.which(qemu_bin)
+        if found:
+            return found
+        raise RuntimeError(
+            f"QEMU binary '{qemu_bin}' not found in {native_dir} or PATH")
+
     def _build_direct_qemu_cmd(self):
         """Build a direct QEMU command line (not runqemu)."""
         arch_cfg = _QEMU_ARCH_CONFIG.get(self.machine)
@@ -118,6 +134,8 @@ class K3sRunner:
             raise RuntimeError(
                 f"Unsupported machine '{self.machine}' for direct QEMU. "
                 f"Supported: {list(_QEMU_ARCH_CONFIG.keys())}")
+
+        qemu_bin = self._find_native_qemu(arch_cfg["qemu_bin"])
 
         deploy_dir = self.build_dir / "tmp" / "deploy" / "images" / self.machine
         kernel = deploy_dir / arch_cfg["kernel_name"]
@@ -143,18 +161,32 @@ class K3sRunner:
         kvm_flag = "-enable-kvm" if self.use_kvm else ""
 
         qemu_params = (
-            f"{arch_cfg['qemu_bin']} {arch_cfg['machine']} {cpu} "
+            f"{qemu_bin} {arch_cfg['machine']} {cpu} "
             f"{kvm_flag} -m 4096 -smp 2 -nographic "
             f"-kernel {kernel} "
-            f"-drive file={rootfs},format=raw "
-            f"-append 'root={arch_cfg['rootdev']} rw console={arch_cfg['console']} ip=dhcp' "
+            f"-drive file={rootfs},if=virtio,format=raw "
+            f'-append "root={arch_cfg["rootdev"]} rw '
+            f'console={arch_cfg["console"]} ip=dhcp" '
             f"-netdev user,id=net0 -device virtio-net-pci,netdev=net0"
         )
 
         if self.extra_qemu_params:
             qemu_params += f" {self.extra_qemu_params}"
 
-        return qemu_params
+        # Native QEMU needs its sysroot libraries. Use oe-init-build-env
+        # and add the native sysroot bin dir to PATH for library resolution.
+        native_bindir = str(
+            self.build_dir / "tmp" / "sysroots-components" / "x86_64"
+            / "qemu-system-native" / "usr" / "bin")
+        native_libdirs = ":".join(str(p) for p in sorted(
+            (self.build_dir / "tmp" / "sysroots-components" / "x86_64"
+             ).glob("*/usr/lib")) if p.is_dir())
+
+        return (
+            f"bash -c 'export PATH={native_bindir}:$PATH && "
+            f"export LD_LIBRARY_PATH={native_libdirs}:${{LD_LIBRARY_PATH:-}} && "
+            f"{qemu_params}'"
+        )
 
     def start(self):
         """Start QEMU and wait for login prompt."""
@@ -608,22 +640,34 @@ class TestK3sMultiNode:
         server = k3s_multinode["server"]
         agent = k3s_multinode["agent"]
 
-        # Stop default k3s service (auto-started) and start with
-        # multi-node flags binding to the socket network
+        # Stop default k3s service and wipe TLS state so the server
+        # generates new certs that include the cluster IP (192.168.50.1).
+        # Without this, certs are only valid for the DHCP IP (10.0.2.15).
         server.run_command('systemctl stop k3s 2>/dev/null')
         server.run_command(
+            'rm -rf /var/lib/rancher/k3s/server/tls '
+            '/var/lib/rancher/k3s/server/cred '
+            '/var/lib/rancher/k3s/server/token '
+            '/var/lib/rancher/k3s/server/agent-token '
+            '/var/lib/rancher/k3s/server/node-token '
+            '/var/lib/rancher/k3s/server/db '
+            '/etc/rancher/k3s/k3s.yaml')
+        server.run_command(
+            'export PATH=$PATH:/opt/cni/bin:/usr/libexec/cni && '
             'k3s server '
             '--write-kubeconfig-mode 644 '
             '--disable-cloud-controller '
             '--node-ip 192.168.50.1 '
             '--bind-address 192.168.50.1 '
             '--advertise-address 192.168.50.1 '
+            '--tls-san 192.168.50.1 '
             '--flannel-iface eth1 '
             '&>/var/log/k3s-server.log &')
 
-        # Wait for server node Ready
+        # Wait for new kubeconfig to be written, then wait for Ready
         try:
             server.wait_for_condition(
+                'test -f /etc/rancher/k3s/k3s.yaml && '
                 f'{_KUBECTL} get nodes 2>/dev/null || echo WAITING',
                 r'\bReady\b',
                 timeout=k3s_timeout,
@@ -642,12 +686,22 @@ class TestK3sMultiNode:
             f"Failed to get node token:\n{token}"
         token = token.strip().splitlines()[-1].strip()
 
-        # Stop default k3s on agent and start agent mode
+        # Stop default k3s on agent, clear server-only config, and
+        # wipe agent state from the auto-started instance.
+        # Set a unique node name — both VMs boot the same image and
+        # have the same hostname, which causes k3s to treat the agent
+        # as the same node as the server.
         agent.run_command('systemctl stop k3s 2>/dev/null')
         agent.run_command(
+            'rm -f /etc/rancher/k3s/config.yaml && '
+            'rm -rf /var/lib/rancher/k3s/agent '
+            '/var/lib/rancher/k3s/server')
+        agent.run_command(
+            f'export PATH=$PATH:/opt/cni/bin:/usr/libexec/cni && '
             f'k3s agent '
             f'--server https://192.168.50.1:6443 '
             f'--token {token} '
+            f'--node-name k3s-agent '
             f'--node-ip 192.168.50.2 '
             f'--flannel-iface eth1 '
             f'&>/var/log/k3s-agent.log &')

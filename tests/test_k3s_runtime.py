@@ -75,7 +75,8 @@ class K3sRunner:
     def __init__(self, poky_dir, build_dir, machine, use_kvm=True,
                  timeout=120, image="container-image-host",
                  extra_qemu_params="", log_suffix="",
-                 use_runqemu=True, rootfs_path=None):
+                 use_runqemu=True, rootfs_path=None,
+                 kernel_append=""):
         self.poky_dir = Path(poky_dir)
         self.build_dir = Path(build_dir)
         self.machine = machine
@@ -86,6 +87,7 @@ class K3sRunner:
         self.log_suffix = log_suffix
         self.use_runqemu = use_runqemu
         self.rootfs_path = rootfs_path
+        self.kernel_append = kernel_append
         self.child = None
         self.booted = False
         self._rootfs_copy = None
@@ -120,6 +122,9 @@ class K3sRunner:
                                  self.extra_qemu_params)
                 if port:
                     cmd += f" --role agent --socket-port {port.group(1)}"
+
+        if self.kernel_append:
+            cmd += f' --append "{self.kernel_append}"'
 
         return cmd
 
@@ -395,6 +400,7 @@ def k3s_multinode(request, poky_dir, build_dir, machine):
                        extra_qemu_params=server_params,
                        use_runqemu=False,
                        rootfs_path=rootfs_orig,
+                       kernel_append="k3s.role=server k3s.node-ip=192.168.50.1",
                        log_suffix="-server")
 
     # Agent VM: socket connect on second NIC, uses rootfs copy
@@ -407,6 +413,7 @@ def k3s_multinode(request, poky_dir, build_dir, machine):
                       extra_qemu_params=agent_params,
                       use_runqemu=False,
                       rootfs_path=rootfs_agent,
+                      kernel_append="k3s.role=agent k3s.node-ip=192.168.50.2 k3s.node-name=k3s-agent",
                       log_suffix="-agent")
     agent._rootfs_copy = str(rootfs_agent)
 
@@ -415,13 +422,9 @@ def k3s_multinode(request, poky_dir, build_dir, machine):
         server.start()
         agent.start()
 
-        # Configure static IPs on eth1 (the socket NIC)
-        server.run_command('ip addr add 192.168.50.1/24 dev eth1')
-        server.run_command('ip link set eth1 up')
-        agent.run_command('ip addr add 192.168.50.2/24 dev eth1')
-        agent.run_command('ip link set eth1 up')
-        # Brief pause for link to come up
-        time.sleep(2)
+        # Wait for networkd to configure IPs from kernel cmdline
+        # (k3s-role-setup.service writes networkd drop-ins)
+        time.sleep(5)
 
         yield {"server": server, "agent": agent}
 
@@ -566,38 +569,15 @@ class TestK3sMultiNode:
             f"Agent cannot ping server:\n{output}"
 
     def test_k3s_agent_join(self, k3s_multinode, k3s_timeout):
-        """Start k3s server on VM1, join agent VM2."""
+        """Wait for k3s server Ready, extract token, start agent."""
         server = k3s_multinode["server"]
         agent = k3s_multinode["agent"]
 
-        # Stop default k3s service and wipe TLS state so the server
-        # generates new certs that include the cluster IP (192.168.50.1).
-        # Without this, certs are only valid for the DHCP IP (10.0.2.15).
-        server.run_command('systemctl stop k3s 2>/dev/null')
-        server.run_command(
-            'rm -rf /var/lib/rancher/k3s/server/tls '
-            '/var/lib/rancher/k3s/server/cred '
-            '/var/lib/rancher/k3s/server/token '
-            '/var/lib/rancher/k3s/server/agent-token '
-            '/var/lib/rancher/k3s/server/node-token '
-            '/var/lib/rancher/k3s/server/db '
-            '/etc/rancher/k3s/k3s.yaml')
-        server.run_command(
-            'export PATH=$PATH:/opt/cni/bin:/usr/libexec/cni && '
-            'k3s server '
-            '--write-kubeconfig-mode 644 '
-            '--disable-cloud-controller '
-            '--node-ip 192.168.50.1 '
-            '--bind-address 192.168.50.1 '
-            '--advertise-address 192.168.50.1 '
-            '--tls-san 192.168.50.1 '
-            '--flannel-iface eth1 '
-            '&>/var/log/k3s-server.log &')
-
-        # Wait for new kubeconfig to be written, then wait for Ready
+        # The server VM booted with k3s.role=server and k3s.node-ip=192.168.50.1
+        # on the kernel cmdline. k3s-role-setup.service configured networking
+        # and k3s.service auto-started. Wait for it to become Ready.
         try:
             server.wait_for_condition(
-                'test -f /etc/rancher/k3s/k3s.yaml && '
                 f'{_KUBECTL} get nodes 2>/dev/null || echo WAITING',
                 r'\bReady\b',
                 timeout=k3s_timeout,
@@ -605,32 +585,30 @@ class TestK3sMultiNode:
                 description="k3s server node Ready")
         except TimeoutError:
             logs = server.run_command(
-                'tail -50 /var/log/k3s-server.log 2>/dev/null || '
+                'journalctl -u k3s --no-pager -n 30 2>/dev/null || '
                 'echo "no logs"')
             pytest.fail(f"Server not Ready:\n{logs}")
 
         # Extract node token
-        token = server.run_command(
-            'cat /var/lib/rancher/k3s/server/node-token 2>&1')
-        assert token and 'No such file' not in token, \
+        token = server.run_command('k3s-get-token 2>&1')
+        # Parse the actual token from the script output
+        for line in token.splitlines():
+            line = line.strip()
+            if line.startswith('K10'):
+                token = line
+                break
+        assert token.startswith('K10'), \
             f"Failed to get node token:\n{token}"
-        token = token.strip().splitlines()[-1].strip()
 
-        # Stop default k3s on agent, clear server-only config, and
-        # wipe agent state from the auto-started instance.
-        # Set a unique node name — both VMs boot the same image and
-        # have the same hostname, which causes k3s to treat the agent
-        # as the same node as the server.
-        agent.run_command('systemctl stop k3s 2>/dev/null')
+        # The agent VM booted with k3s.role=agent but without a token
+        # (we didn't know it at launch time). Role-setup configured
+        # networking and masked k3s.service. Start k3s-agent manually
+        # with the token from the server.
         agent.run_command(
-            'rm -f /etc/rancher/k3s/config.yaml && '
-            'rm -rf /var/lib/rancher/k3s/agent '
-            '/var/lib/rancher/k3s/server')
-        agent.run_command(
+            f'export K3S_URL=https://192.168.50.1:6443 && '
+            f'export K3S_TOKEN={token} && '
             f'export PATH=$PATH:/opt/cni/bin:/usr/libexec/cni && '
             f'k3s agent '
-            f'--server https://192.168.50.1:6443 '
-            f'--token {token} '
             f'--node-name k3s-agent '
             f'--node-ip 192.168.50.2 '
             f'--flannel-iface eth1 '

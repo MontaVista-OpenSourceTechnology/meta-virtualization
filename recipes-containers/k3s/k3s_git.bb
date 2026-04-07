@@ -11,6 +11,10 @@ SRC_URI = "git://github.com/rancher/k3s.git;branch=release-1.35;name=k3s;protoco
            file://k3s-clean \
            file://cni-flannel.conflist \
            file://k3s-killall.sh \
+           file://k3s-role-setup.sh \
+           file://k3s-role-setup.service \
+           file://k3s-get-token.sh \
+           file://10-k3s-cluster.network \
           "
 
 # Traefik Helm charts — downloaded and embedded into the k3s binary
@@ -33,6 +37,11 @@ PV = "v1.35.2+k3s1+git"
 
 # K3s uses flannel for CNI networking, not the containerd bridge config
 CNI_NETWORKING_FILES ?= "${UNPACKDIR}/cni-flannel.conflist"
+
+# Claim the cluster network interface (eth1) so systemd-networkd's
+# default catch-all doesn't configure it with DHCP. The static IP
+# is set at boot by k3s-role-setup.service via a networkd drop-in.
+VIRT_NETWORKING_FILES ?= "${UNPACKDIR}/10-k3s-cluster.network"
 
 PACKAGECONFIG ??= "traefik"
 PACKAGECONFIG[traefik] = ",,,"
@@ -63,6 +72,7 @@ inherit go
 inherit goarch
 inherit systemd
 inherit cni_networking
+inherit virt_networking
 inherit go-mod-discovery
 
 BB_GIT_SHALLOW = "1"
@@ -140,8 +150,11 @@ do_install() {
         if ${@bb.utils.contains('DISTRO_FEATURES','systemd','true','false',d)}; then
                 install -D -m 0644 "${UNPACKDIR}/k3s.service" "${D}${systemd_system_unitdir}/k3s.service"
                 install -D -m 0644 "${UNPACKDIR}/k3s-agent.service" "${D}${systemd_system_unitdir}/k3s-agent.service"
+                install -D -m 0644 "${UNPACKDIR}/k3s-role-setup.service" "${D}${systemd_system_unitdir}/k3s-role-setup.service"
                 sed -i "s#\(Exec\)\(.*\)=\(.*\)\(k3s\)#\1\2=${BIN_PREFIX}/bin/\4#g" "${D}${systemd_system_unitdir}/k3s.service" "${D}${systemd_system_unitdir}/k3s-agent.service"
                 install -m 755 "${UNPACKDIR}/k3s-agent" "${D}${BIN_PREFIX}/bin"
+                install -m 755 "${UNPACKDIR}/k3s-role-setup.sh" "${D}${BIN_PREFIX}/bin/k3s-role-setup.sh"
+                install -m 755 "${UNPACKDIR}/k3s-get-token.sh" "${D}${BIN_PREFIX}/bin/k3s-get-token"
         fi
 
 	mkdir -p ${D}${datadir}/k3s/
@@ -165,9 +178,10 @@ do_install() {
 
 PACKAGES =+ "${PN}-server ${PN}-agent"
 
-SYSTEMD_PACKAGES = "${@bb.utils.contains('DISTRO_FEATURES','systemd','${PN}-server ${PN}-agent','',d)}"
+SYSTEMD_PACKAGES = "${@bb.utils.contains('DISTRO_FEATURES','systemd','${PN}-server ${PN}-agent ${PN}','',d)}"
 SYSTEMD_SERVICE:${PN}-server = "${@bb.utils.contains('DISTRO_FEATURES','systemd','k3s.service','',d)}"
 SYSTEMD_SERVICE:${PN}-agent = "${@bb.utils.contains('DISTRO_FEATURES','systemd','k3s-agent.service','',d)}"
+SYSTEMD_SERVICE:${PN} = "${@bb.utils.contains('DISTRO_FEATURES','systemd','k3s-role-setup.service','',d)}"
 SYSTEMD_AUTO_ENABLE:${PN}-agent = "disable"
 
 FILES:${PN}-agent = "${BIN_PREFIX}/bin/k3s-agent"

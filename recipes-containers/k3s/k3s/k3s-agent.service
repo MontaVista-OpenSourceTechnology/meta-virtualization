@@ -3,13 +3,17 @@
 Description=Lightweight Kubernetes Agent
 Documentation=https://k3s.io
 Requires=containerd.service
-After=containerd.service
+After=containerd.service k3s-role-setup.service
+After=network-online.target
+Wants=network-online.target
 
 [Install]
 WantedBy=multi-user.target
 
 [Service]
 Type=notify
+EnvironmentFile=-/etc/default/%N
+EnvironmentFile=-/etc/sysconfig/%N
 # Ensure CNI plugin binaries are discoverable
 Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/cni/bin:/usr/libexec/cni
 KillMode=control-group

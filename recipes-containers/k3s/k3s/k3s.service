@@ -4,7 +4,7 @@ Description=Lightweight Kubernetes
 Documentation=https://k3s.io
 Requires=containerd.service
 After=containerd.service
-After=network-online.target
+After=network-online.target k3s-role-setup.service
 Wants=network-online.target
 
 [Install]

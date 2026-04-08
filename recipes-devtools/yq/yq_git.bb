@@ -35,6 +35,10 @@ GO_MOD_DISCOVERY_GIT_REF = "${SRCREV_yq}"
 inherit go goarch ptest
 inherit go-mod-discovery
 
+# GO's internal linker doesn't support PIE for linux 32 bits target,
+# so -buildmode=pie requires external (cgo) linking on ARM and x86.
+GOBUILDFLAGS:remove = "-buildmode=pie"
+
 do_compile() {
     cd ${S}/src/import
 

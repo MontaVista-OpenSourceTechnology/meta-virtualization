@@ -52,6 +52,9 @@ INSANE_SKIP:${PN} += "already-stripped"
 CGO_ENABLED:task-discover-modules = "0"
 CGO_ENABLED:task-discover-and-generate = "0"
 
+PACKAGECONFIG ??= ""
+PACKAGECONFIG[vm] = ",,,qemu virtiofsd ovmf"
+
 RDEPENDS:${PN} = " \
     lxc \
     lxcfs \

@@ -15,6 +15,8 @@ SRCREV_incus = "5231e7a1beca905d57208b441040f9ebdc6a2c6f"
 SRCREV_FORMAT = "incus"
 PV = "6.0.6+git"
 
+COMPATIBLE_HOST = "(x86_64|aarch64).*-linux"
+
 GO_IMPORT = "github.com/lxc/incus/v6"
 
 DEPENDS = "cowsql raft lxc sqlite3 libuv libcap acl"

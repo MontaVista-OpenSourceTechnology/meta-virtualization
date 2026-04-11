@@ -43,4 +43,7 @@ XEN_GUEST_IMAGE_SIZE[alpine] = "128"
 
 # Guest parameters
 XEN_GUEST_MEMORY[alpine] = "256"
-XEN_GUEST_EXTRA[alpine] = "root=/dev/xvda ro console=hvc0"
+# Use init=/bin/sh — Alpine minirootfs doesn't include openrc which
+# /sbin/init symlinks to. The minirootfs is container-oriented, not
+# a full bootable system.
+XEN_GUEST_EXTRA[alpine] = "root=/dev/xvda ro console=hvc0 init=/bin/sh"

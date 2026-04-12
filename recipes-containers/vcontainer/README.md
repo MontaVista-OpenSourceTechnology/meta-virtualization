@@ -268,6 +268,55 @@ vdkr pull alpine:latest
 vdkr images   # Shows alpine:latest
 ```
 
+## Registry Login and Configuration
+
+For authenticated registries:
+
+```bash
+# Login (interactive password prompt)
+vdkr login --username myuser https://registry.example.com/
+
+# Pull from the registry
+vdkr pull registry.example.com/myimage:latest
+```
+
+Set a default registry so you don't need to specify the full URL each time:
+
+```bash
+# Set default registry (persisted across sessions)
+vdkr vconfig registry registry.example.com
+
+# Now pulls try the default registry first, then Docker Hub
+vdkr pull myimage:latest
+
+# One-off override without changing the default
+vdkr --registry other.registry.com pull myimage:latest
+
+# Clear default registry
+vdkr vconfig registry --reset
+```
+
+**Note:** The `--registry` flag is a vdkr option that sets the default
+registry for pulls. For `login`, pass the registry URL as a positional
+argument after the login flags:
+
+```bash
+# Correct:
+vdkr login --username myuser https://registry.example.com/
+
+# Wrong (--registry is consumed by vdkr, login gets no URL):
+vdkr --registry https://registry.example.com/ login --username myuser
+```
+
+**TLS certificates:** The vdkr/vpdmn rootfs images include common
+intermediate certificates (Let's Encrypt E8/R11) to handle registries
+that don't send the full certificate chain. For self-signed registries,
+use `--secure-registry --ca-cert`:
+
+```bash
+vdkr --secure-registry --ca-cert /path/to/ca.crt pull myimage
+```
+
 ## Volume Mounts
 
 Mount host directories into containers using `-v` (requires memory resident mode):

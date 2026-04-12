@@ -60,6 +60,7 @@ IMAGE_INSTALL = " \
     iptables \
     util-linux \
     kernel-modules \
+    ca-certificates \
 "
 
 # No extra features needed

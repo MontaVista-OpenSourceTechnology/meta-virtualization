@@ -2196,9 +2196,14 @@ case "$COMMAND" in
 
     login)
         [ "${VCONTAINER_HYPERVISOR:-}" = "xen" ] && vxn_unsupported "login"
-        # Login to registry - may need credentials via stdin
-        # For non-interactive: runtime login -u user -p pass registry
-        run_runtime_command "$VCONTAINER_RUNTIME_CMD login ${COMMAND_ARGS[*]}"
+        # Login needs interactive stdin for password prompt.
+        # Use daemon-interactive mode (same as vshell/exec -it).
+        if daemon_is_running; then
+            RUNNER_ARGS=$(build_runner_args)
+            "$RUNNER" $RUNNER_ARGS --daemon-interactive -- "$VCONTAINER_RUNTIME_CMD login ${COMMAND_ARGS[*]}"
+        else
+            run_runtime_command "$VCONTAINER_RUNTIME_CMD login ${COMMAND_ARGS[*]}"
+        fi
         ;;
 
     logout)

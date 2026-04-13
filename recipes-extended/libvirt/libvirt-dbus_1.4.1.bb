@@ -16,6 +16,8 @@ SRCREV = "0c355bb8921d7cbccf93f41a8615fcd973e64f70"
 
 inherit meson pkgconfig
 
+CFLAGS:append = " -Wno-error=inline"
+
 FILES:${PN} += "\
     ${datadir}/dbus-1/* \
     ${datadir}/polkit-1/* \

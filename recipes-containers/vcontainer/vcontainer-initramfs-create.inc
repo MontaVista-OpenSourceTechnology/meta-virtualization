@@ -44,12 +44,12 @@ python () {
         d.setVarFlag('do_compile', 'nostamp', '1')
         d.setVarFlag('do_deploy', 'nostamp', '1')
 
-    # Conditionally set mcdepends when our multiconfig is configured
-    # (avoids parse errors when BBMULTICONFIG is not set, e.g. yocto-check-layer)
-    mc = d.getVar('VCONTAINER_MULTICONFIG')
-    bbmulticonfig = (d.getVar('BBMULTICONFIG') or "").split()
-    if mc in bbmulticonfig:
-        d.setVarFlag('do_compile', 'mcdepends', 'mc:%s::virtual/kernel:do_deploy' % mc)
+    # The kernel is built as a dependency of the rootfs image within the
+    # same multiconfig — no cross-multiconfig mcdepends needed. The
+    # previous mcdepends on mc:<mc>::virtual/kernel:do_deploy was wrong
+    # because it depended on the main config's kernel (which may be a
+    # different architecture) and deployed to DEPLOY_DIR_IMAGE (main
+    # config), not MC_DEPLOY (multiconfig).
 }
 
 # Only populate native sysroot, skip target sysroot to avoid libgcc conflicts
@@ -141,14 +141,18 @@ do_compile() {
     # =========================================================================
     # PART 3: COPY KERNEL
     # =========================================================================
+    # Use the multiconfig's deploy directory (same as initramfs/rootfs),
+    # not DEPLOY_DIR_IMAGE which may point to the main config's deploy
+    # directory. The kernel is built as a dependency of the rootfs image
+    # within the same multiconfig.
     bbnote "Copying kernel image..."
-    KERNEL_FILE="${DEPLOY_DIR_IMAGE}/${KERNEL_IMAGETYPE_INITRAMFS}"
+    KERNEL_FILE="${MC_DEPLOY}/${KERNEL_IMAGETYPE_INITRAMFS}"
     if [ -f "${KERNEL_FILE}" ]; then
         cp "${KERNEL_FILE}" ${B}/kernel
         KERNEL_SIZE=$(stat -c%s ${B}/kernel)
         bbnote "Kernel copied: ${KERNEL_SIZE} bytes ($(expr ${KERNEL_SIZE} / 1024 / 1024)MB)"
     else
-        bbwarn "Kernel not found at ${KERNEL_FILE}"
+        bbwarn "Kernel not found at ${KERNEL_FILE} — check that the vruntime multiconfig kernel is built"
     fi
 }
 

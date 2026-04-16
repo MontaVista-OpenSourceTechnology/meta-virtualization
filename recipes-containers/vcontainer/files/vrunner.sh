@@ -38,6 +38,13 @@ TARGET_ARCH="${VDKR_ARCH:-${VPDMN_ARCH:-aarch64}}"
 TIMEOUT="${VDKR_TIMEOUT:-${VPDMN_TIMEOUT:-300}}"
 VERBOSE="${VDKR_VERBOSE:-${VPDMN_VERBOSE:-false}}"
 
+# Registry authentication config file (docker config.json / podman auth.json).
+# Can be set via $VDKR_CONFIG or $VPDMN_CONFIG in the environment, and is
+# overridden by the --config CLI flag below. The file is passed into the guest
+# over a dedicated read-only virtio-9p share and installed into the guest
+# container runtime's credential location by the init script.
+AUTH_CONFIG="${VDKR_CONFIG:-${VPDMN_CONFIG:-}}"
+
 # Runtime-specific settings (set after parsing --runtime)
 set_runtime_config() {
     case "$RUNTIME" in
@@ -232,6 +239,12 @@ OPTIONS:
     --network, -n        Enable networking (slirp user-mode, outbound only)
     --registry <url>     Default registry for unqualified images (e.g., 10.0.2.2:5000/yocto)
     --insecure-registry <host:port>  Mark registry as insecure (HTTP). Can repeat.
+    --config <path>      Path to docker/podman auth config (config.json / auth.json).
+                         Defaults to $VDKR_CONFIG or $VPDMN_CONFIG from environment.
+                         The file is passed to the guest over a dedicated read-only
+                         virtio-9p share and installed at /root/.docker/config.json
+                         (vdkr) or /run/containers/0/auth.json (vpdmn). The host file
+                         must be a regular file with mode 0600 or stricter.
     --interactive, -it   Run in interactive mode (connects terminal to container)
     --timeout <secs>     QEMU timeout [default: 300]
     --idle-timeout <s>   Daemon idle timeout in seconds [default: 1800]
@@ -404,6 +417,13 @@ while [ $# -gt 0 ]; do
         --registry-pass)
             # Registry password
             REGISTRY_PASS="$2"
+            shift 2
+            ;;
+        --config)
+            # Path to a docker/podman config file (config.json / auth.json)
+            # Overrides $VDKR_CONFIG / $VPDMN_CONFIG. The file is mounted into
+            # the guest via a dedicated read-only virtio-9p share.
+            AUTH_CONFIG="$2"
             shift 2
             ;;
         --interactive|-it)
@@ -846,6 +866,124 @@ fi
 # Create temp directory early (needed for batch import and other operations)
 TEMP_DIR="${TMPDIR:-/tmp}/vdkr-$$"
 mkdir -p "$TEMP_DIR"
+
+# ============================================================================
+# Registry auth config (docker config.json / podman auth.json)
+# ============================================================================
+# The AUTH_CONFIG path (from $VDKR_CONFIG, $VPDMN_CONFIG, or --config) points
+# to a file containing container-registry credentials. For defence-in-depth we:
+#   * reject non-regular files (symlinks, devices, directories)
+#   * reject files readable by group/other (mode must be <= 0600)
+#   * warn if the file is not owned by the invoking user
+#   * copy it into a private per-invocation directory under $TEMP_DIR at 0400
+#   * expose it to the guest via a *separate* read-only virtio-9p tag
+#     ("${TOOL_NAME}_auth") mounted at /mnt/auth (not the generic /mnt/share
+#     which holds input/output and is wiped between daemon commands)
+#   * never pass the file contents or path on the kernel cmdline; only a flag
+#     "${CMDLINE_PREFIX}_auth=1" to tell the init script to look at /mnt/auth
+#   * rely on the existing $TEMP_DIR EXIT/INT/TERM trap to delete the copy
+#
+# The auth file is never logged (path is visible, but contents are not).
+AUTH_SHARE_DIR=""
+
+validate_auth_config() {
+    local path="$1"
+
+    # Resolve symlinks to the canonical path so the perm check applies to the
+    # actual file, but still require the *named* path to be a regular file
+    # (not a symlink pointing into sensitive areas like /proc/self/environ).
+    if [ -L "$path" ]; then
+        log "ERROR" "--config must not be a symlink: $path"
+        return 1
+    fi
+    if [ ! -e "$path" ]; then
+        log "ERROR" "--config file not found: $path"
+        return 1
+    fi
+    if [ ! -f "$path" ]; then
+        log "ERROR" "--config must be a regular file: $path"
+        return 1
+    fi
+    if [ ! -r "$path" ]; then
+        log "ERROR" "--config file is not readable: $path"
+        return 1
+    fi
+
+    # Size sanity: docker config.json / podman auth.json should be small.
+    # 1 MiB is already generous. Reject unusually large files to avoid
+    # accidentally shipping a large credential blob.
+    local size
+    size=$(stat -c %s "$path" 2>/dev/null || echo 0)
+    if [ "$size" -gt 1048576 ]; then
+        log "ERROR" "--config file is too large ($size bytes, max 1 MiB): $path"
+        return 1
+    fi
+    # Minimum valid JSON object "{}" is 2 bytes. Anything smaller (including a
+    # 0-byte truncation or a lone newline from "echo '' > file") can't be a
+    # real auth config; reject rather than silently shipping garbage.
+    if [ "$size" -lt 2 ]; then
+        log "ERROR" "--config file is empty or too small to be valid JSON: $path"
+        return 1
+    fi
+
+    # Permission check: must not be readable by group or world.
+    local mode
+    mode=$(stat -c %a "$path" 2>/dev/null || echo 0)
+    # stat %a emits octal without leading zero. Forbid any group/other bits.
+    case "$mode" in
+        400|600|200) ;;
+        *)
+            log "ERROR" "--config file has unsafe permissions ($mode); expected 0600 or 0400."
+            log "ERROR" "Fix with: chmod 600 \"$path\""
+            return 1
+            ;;
+    esac
+
+    # Ownership check: warn if file is not owned by the current user.
+    local uid owner
+    uid=$(id -u)
+    owner=$(stat -c %u "$path" 2>/dev/null || echo "")
+    if [ -n "$owner" ] && [ "$owner" != "$uid" ]; then
+        log "WARN" "--config file is not owned by current user (uid=$uid, owner=$owner)"
+    fi
+
+    return 0
+}
+
+# Stage the auth config into a dedicated read-only 9p share. Must be called
+# AFTER $TEMP_DIR exists and AFTER hypervisor backend functions are sourced.
+# Sets $AUTH_SHARE_DIR and appends to $HV_OPTS / $KERNEL_APPEND.
+setup_auth_share() {
+    [ -z "$AUTH_CONFIG" ] && return 0
+
+    if ! validate_auth_config "$AUTH_CONFIG"; then
+        log "ERROR" "Refusing to stage $AUTH_CONFIG — see above."
+        exit 1
+    fi
+
+    AUTH_SHARE_DIR="$TEMP_DIR/auth_share"
+    # 0700 so nothing outside our process can peek at the staged file.
+    mkdir -p "$AUTH_SHARE_DIR"
+    chmod 700 "$AUTH_SHARE_DIR"
+
+    # Always stage as config.json regardless of source filename — the guest
+    # init script knows to look for this fixed name.
+    if ! cp "$AUTH_CONFIG" "$AUTH_SHARE_DIR/config.json"; then
+        log "ERROR" "Failed to stage auth config"
+        exit 1
+    fi
+    chmod 400 "$AUTH_SHARE_DIR/config.json"
+
+    local auth_tag="${TOOL_NAME}_auth"
+    hv_build_9p_opts "$AUTH_SHARE_DIR" "$auth_tag" "readonly=on"
+    KERNEL_APPEND="$KERNEL_APPEND ${CMDLINE_PREFIX}_auth=1"
+
+    # Deliberately log the *fact* of staging, not the path contents or
+    # credentials. The path itself is useful for debugging and appears in
+    # --verbose mode only.
+    log "INFO" "Registry auth config staged on read-only 9p share (tag=$auth_tag)"
+    log "DEBUG" "Auth source: $AUTH_CONFIG"
+}
 
 cleanup() {
     if [ "$KEEP_TEMP" = "true" ]; then
@@ -1310,6 +1448,10 @@ if [ "$DAEMON_MODE" = "start" ]; then
         log "DEBUG" "CA certificate copied to shared folder"
     fi
 
+    # Stage registry auth config (config.json / auth.json) on a dedicated
+    # read-only 9p share. See setup_auth_share() for the security model.
+    setup_auth_share
+
     log "INFO" "Starting daemon..."
     log "DEBUG" "PID file: $DAEMON_PID_FILE"
     log "DEBUG" "Socket: $DAEMON_SOCKET"
@@ -1438,6 +1580,11 @@ if [ -n "$CA_CERT" ] && [ -f "$CA_CERT" ]; then
     KERNEL_APPEND="$KERNEL_APPEND ${CMDLINE_PREFIX}_9p=1"
     log "DEBUG" "CA certificate available via 9p"
 fi
+
+# Stage registry auth config (config.json / auth.json) on a dedicated read-only
+# 9p share for non-daemon and batch-import modes. Safe to call when AUTH_CONFIG
+# is empty — it no-ops. See setup_auth_share() for the security model.
+setup_auth_share
 
 log "INFO" "Starting VM ($VCONTAINER_HYPERVISOR)..."
 

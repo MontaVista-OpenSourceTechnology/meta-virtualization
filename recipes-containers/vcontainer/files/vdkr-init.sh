@@ -26,6 +26,10 @@
 #   docker_registry_ca=1                  CA certificate available in /mnt/share/ca.crt
 #   docker_registry_user=<user>           Registry username for authentication
 #   docker_registry_pass=<base64>         Base64-encoded registry password
+#   docker_auth=1                         A pre-built docker config.json is available
+#                                         on a dedicated read-only 9p share tagged
+#                                         "vdkr_auth" (mounted at /mnt/auth). Takes
+#                                         precedence over docker_registry_user/pass.
 #
 # Version: 2.5.0
 
@@ -157,6 +161,55 @@ EOF
             log "WARNING: Failed to decode registry password"
         fi
     fi
+}
+
+# Install a user-supplied docker config.json from the dedicated read-only
+# auth 9p share (mounted at /mnt/auth by mount_auth_share). This takes
+# precedence over credentials supplied via docker_registry_user/pass.
+#
+# Security posture:
+#   * File is read from a read-only 9p share with a separate tag ("vdkr_auth")
+#     so it cannot leak into /mnt/share outputs.
+#   * Target is written with mode 0600 and the parent dir with mode 0700.
+#   * We unmount /mnt/auth immediately after copying so neither the dockerd
+#     runtime nor user workloads in the VM have an open reference to the
+#     host-side staging directory.
+install_auth_config() {
+    if [ "$RUNTIME_AUTH" != "1" ]; then
+        return 0
+    fi
+
+    if ! mount_auth_share; then
+        log "WARNING: docker_auth=1 was set but the auth 9p share did not mount"
+        return 1
+    fi
+
+    local src="$AUTH_SHARE_MOUNT/config.json"
+    if [ ! -f "$src" ]; then
+        log "WARNING: expected $src on auth share but file is missing"
+        unmount_auth_share
+        return 1
+    fi
+
+    mkdir -p /root/.docker
+    chmod 700 /root/.docker
+
+    if cp "$src" /root/.docker/config.json 2>/dev/null; then
+        chmod 600 /root/.docker/config.json
+        log "Installed registry auth config at /root/.docker/config.json"
+        if [ -n "$DOCKER_REGISTRY_USER" ] || [ -n "$DOCKER_REGISTRY_PASS" ]; then
+            log "NOTE: --config takes precedence over --registry-user/--registry-pass"
+        fi
+    else
+        log "ERROR: failed to copy auth config to /root/.docker/config.json"
+        unmount_auth_share
+        return 1
+    fi
+
+    # Release the host-side share so credentials aren't still addressable
+    # through /mnt/auth for the lifetime of the VM.
+    unmount_auth_share
+    return 0
 }
 
 # ============================================================================
@@ -683,6 +736,11 @@ parse_secure_registry_config
 
 # Install CA certificate for secure registry
 install_registry_ca
+
+# Install user-supplied docker config.json from the dedicated auth 9p share.
+# Must run AFTER install_registry_ca so that --config takes precedence when
+# both mechanisms are used.
+install_auth_config
 
 # Start containerd and dockerd (Docker-specific)
 start_containerd

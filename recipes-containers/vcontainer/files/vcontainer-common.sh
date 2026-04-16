@@ -718,6 +718,11 @@ ${BOLD}GLOBAL OPTIONS:${NC}
     --registry <url>      Default registry for unqualified images (e.g., 10.0.2.2:5000/yocto)
     --no-registry         Disable baked-in default registry (use images as-is)
     --insecure-registry <host:port>  Mark registry as insecure (HTTP). Can repeat.
+    --config <path>       Registry auth file (docker config.json / podman auth.json)
+                          Defaults to \$VDKR_CONFIG / \$VPDMN_CONFIG. The file must be
+                          mode 0600 or stricter; it is passed to the guest over a
+                          dedicated read-only virtio-9p share and never appears on
+                          the kernel cmdline.
     --verbose, -v         Enable verbose output
     --help, -h            Show this help
 
@@ -857,6 +862,7 @@ build_runner_args() {
     [ -n "$CA_CERT" ] && args+=("--ca-cert" "$CA_CERT")
     [ -n "$REGISTRY_USER" ] && args+=("--registry-user" "$REGISTRY_USER")
     [ -n "$REGISTRY_PASS" ] && args+=("--registry-pass" "$REGISTRY_PASS")
+    [ -n "$AUTH_CONFIG" ] && args+=("--config" "$AUTH_CONFIG")
 
     # Xen: pass exit grace period
     [ -n "${VXN_EXIT_GRACE_PERIOD:-}" ] && args+=("--exit-grace-period" "$VXN_EXIT_GRACE_PERIOD")
@@ -880,6 +886,11 @@ SECURE_REGISTRY="false"
 CA_CERT=""
 REGISTRY_USER=""
 REGISTRY_PASS=""
+# Registry auth config file. Env-var default depends on which CLI wrapper is
+# in use (vdkr → $VDKR_CONFIG, vpdmn → $VPDMN_CONFIG), then falls back to the
+# other for convenience when sharing a single host-side file. Overridden by
+# the --config CLI flag below.
+AUTH_CONFIG="${VDKR_CONFIG:-${VPDMN_CONFIG:-}}"
 COMMAND=""
 COMMAND_ARGS=()
 
@@ -975,6 +986,13 @@ while [ $# -gt 0 ]; do
             ;;
         --registry-password|--registry-pass)
             REGISTRY_PASS="$2"
+            shift 2
+            ;;
+        --config)
+            # Path to a docker/podman registry auth file (config.json / auth.json).
+            # Overrides $VDKR_CONFIG / $VPDMN_CONFIG. Forwarded to vrunner.sh --config,
+            # which validates the file and stages it on a dedicated read-only 9p share.
+            AUTH_CONFIG="$2"
             shift 2
             ;;
         -it|--interactive)

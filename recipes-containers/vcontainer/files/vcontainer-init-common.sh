@@ -156,6 +156,7 @@ parse_cmdline() {
     RUNTIME_INTERACTIVE="0"
     RUNTIME_DAEMON="0"
     RUNTIME_9P="0"  # virtio-9p available for fast I/O
+    RUNTIME_AUTH="0"  # registry auth config (config.json / auth.json) available on dedicated 9p share
     RUNTIME_IDLE_TIMEOUT="1800"  # Default: 30 minutes
 
     for param in $(cat /proc/cmdline); do
@@ -186,6 +187,9 @@ parse_cmdline() {
                 ;;
             ${VCONTAINER_RUNTIME_PREFIX}_9p=*)
                 RUNTIME_9P="${param#${VCONTAINER_RUNTIME_PREFIX}_9p=}"
+                ;;
+            ${VCONTAINER_RUNTIME_PREFIX}_auth=*)
+                RUNTIME_AUTH="${param#${VCONTAINER_RUNTIME_PREFIX}_auth=}"
                 ;;
         esac
     done
@@ -260,6 +264,56 @@ mount_input_disk() {
         log "WARNING: No input device found, continuing without input"
         RUNTIME_INPUT="none"
     fi
+}
+
+# ============================================================================
+# Registry auth share (docker config.json / podman auth.json)
+# ============================================================================
+# The host stages a validated credential file on a *dedicated* read-only 9p
+# share tagged "${VCONTAINER_RUNTIME_NAME}_auth" (e.g. "vdkr_auth" or
+# "vpdmn_auth"). That tag is separate from the general ${VCONTAINER_SHARE_NAME}
+# used for input/output so credentials can't leak into storage.tar outputs or
+# be overwritten by daemon_send_with_input.
+#
+# We mount read-only, nosuid, nodev, noexec at /mnt/auth. Callers are expected
+# to copy the credential file into the runtime's canonical location with
+# restrictive permissions and then call unmount_auth_share() so the guest
+# filesystem no longer has an open reference to the host-side file.
+
+AUTH_SHARE_TAG=""
+AUTH_SHARE_MOUNT="/mnt/auth"
+
+mount_auth_share() {
+    if [ "$RUNTIME_AUTH" != "1" ]; then
+        return 1
+    fi
+
+    AUTH_SHARE_TAG="${VCONTAINER_RUNTIME_NAME}_auth"
+    mkdir -p "$AUTH_SHARE_MOUNT"
+
+    # trans/version/cache match the existing 9p share mount. Add:
+    #   ro      - guest can't mutate the host-side staging directory
+    #   nosuid  - no setuid binaries can be executed from the share
+    #   nodev   - no device nodes honoured even if crafted
+    #   noexec  - no code can execute from the share (auth.json is pure data)
+    if mount -t 9p \
+        -o trans=${NINE_P_TRANSPORT},version=9p2000.L,cache=none,ro,nosuid,nodev,noexec \
+        "$AUTH_SHARE_TAG" "$AUTH_SHARE_MOUNT" 2>/dev/null; then
+        log "Mounted auth 9p share at $AUTH_SHARE_MOUNT (tag: $AUTH_SHARE_TAG, ro)"
+        return 0
+    fi
+
+    log "WARNING: Could not mount auth 9p share ($AUTH_SHARE_TAG)"
+    RUNTIME_AUTH="0"
+    return 1
+}
+
+unmount_auth_share() {
+    if mountpoint -q "$AUTH_SHARE_MOUNT" 2>/dev/null; then
+        umount "$AUTH_SHARE_MOUNT" 2>/dev/null || \
+            umount -l "$AUTH_SHARE_MOUNT" 2>/dev/null || true
+    fi
+    rmdir "$AUTH_SHARE_MOUNT" 2>/dev/null || true
 }
 
 # ============================================================================

@@ -55,7 +55,6 @@ RDEPENDS:${PN}-ptest += " \
     iputils \
     jq \
     nftables \
-    ${@bb.utils.contains( "TARGET_ARCH", "aarch64", "", "nmap", d)} \
     procps-ps \
     util-linux-nsenter \
     util-linux-unshare \

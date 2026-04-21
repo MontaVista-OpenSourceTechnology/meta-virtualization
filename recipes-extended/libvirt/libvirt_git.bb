@@ -232,13 +232,6 @@ do_install:append() {
                 mv ${D}${prefix}/lib/systemd/system/* ${D}${systemd_system_unitdir}
                 rmdir ${D}${prefix}/lib/systemd/system ${D}${prefix}/lib/systemd
             fi
-
-	    # We can't use 'notify' when we don't support 'sd_notify' dbus capabilities.
-	    # Change default LIBVIRTD_ARGS to start libvirtd in the right mode.
-	    sed -i -e 's/Type=notify/Type=forking/' \
-	           -e '/Type=forking/a PIDFile=/run/libvirtd.pid' \
-	           -e 's/\(Environment=LIBVIRTD_ARGS="--timeout 120"\)/#\1\nEnvironment=LIBVIRTD_ARGS="--listen --daemon"/' \
-		   ${D}/${systemd_system_unitdir}/libvirtd.service
 	fi
 
 	# The /run/libvirt directories created by the Makefile are 

@@ -12,13 +12,13 @@ DEPENDS += "glib-2.0 libvirt libvirt-glib python3-docutils-native"
 
 SRC_URI = "git://gitlab.com/libvirt/libvirt-dbus.git;nobranch=1;protocol=https"
 
-SRCREV = "0c355bb8921d7cbccf93f41a8615fcd973e64f70"
+PV = "1.4.1+git"
+SRCREV = "d1c49c2e3616249d1c88cd52fa0deb3e6d0e588f"
 
 inherit meson pkgconfig
-
-CFLAGS:append = " -Wno-error=inline"
 
 FILES:${PN} += "\
     ${datadir}/dbus-1/* \
     ${datadir}/polkit-1/* \
+    ${nonarch_libdir}/sysusers.d \
 "

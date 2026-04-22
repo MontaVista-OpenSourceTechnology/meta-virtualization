@@ -404,20 +404,35 @@ class VdkrRunner:
         self._needs_arch_flag = binary.name == "vdkr"
 
     def run(self, *args, timeout=120, check=True, capture_output=True):
-        """Run a vdkr command with test state directory."""
+        """Run a vdkr command with test state directory.
+
+        Uses Popen with start_new_session and file-based output to
+        prevent daemon background processes from inheriting pipe FDs,
+        which causes subprocess.run(capture_output=True) to hang in
+        CI/test harness environments.
+        """
         cmd = [str(self.binary)]
         if self._needs_arch_flag:
             cmd.extend(["--arch", self.arch])
         cmd.extend(["--state-dir", str(self.state_dir)])
         cmd.extend(list(args))
-        result = subprocess.run(
-            cmd,
-            env=self.env,
-            timeout=timeout,
-            check=False,  # Don't raise immediately, check manually for better error messages
-            capture_output=capture_output,
-            text=True,
-        )
+        with tempfile.TemporaryFile(mode='w+') as out:
+            proc = subprocess.Popen(
+                cmd, env=self.env,
+                stdin=subprocess.DEVNULL,
+                stdout=out, stderr=subprocess.STDOUT,
+                start_new_session=True,
+            )
+            try:
+                proc.wait(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait()
+                raise
+            out.seek(0)
+            output = out.read()
+        result = subprocess.CompletedProcess(
+            cmd, proc.returncode, stdout=output, stderr="")
         if check and result.returncode != 0:
             error_msg = f"Command failed: {' '.join(cmd)}\n"
             error_msg += f"Exit code: {result.returncode}\n"
@@ -425,7 +440,6 @@ class VdkrRunner:
                 error_msg += f"stdout: {result.stdout}\n"
             if result.stderr:
                 error_msg += f"stderr: {result.stderr}\n"
-            # Print error so it's visible in test output
             print(error_msg)
             raise AssertionError(error_msg)
         return result

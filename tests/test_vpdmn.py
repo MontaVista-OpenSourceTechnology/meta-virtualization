@@ -457,7 +457,8 @@ class TestVolumeMounts:
 
         # Should fail because memres is not running
         assert result.returncode != 0
-        assert "memres" in result.stderr.lower() or "daemon" in result.stderr.lower()
+        output = (result.stdout + result.stderr).lower()
+        assert "memres" in output or "daemon" in output
 
 
 @pytest.mark.memres
@@ -502,7 +503,8 @@ class TestSystem:
 
         result = vpdmn.run("system", check=False)
         assert result.returncode != 0
-        assert "subcommand" in result.stderr.lower() or "requires" in result.stderr.lower()
+        output = (result.stdout + result.stderr).lower()
+        assert "subcommand" in output or "requires" in output
 
 
 @pytest.mark.memres
@@ -582,7 +584,8 @@ class TestVstorage:
         """Test vstorage with unknown subcommand shows error."""
         result = vpdmn.run("vstorage", "invalid", check=False)
         assert result.returncode != 0
-        assert "unknown" in result.stderr.lower() or "usage" in result.stderr.lower()
+        output = (result.stdout + result.stderr).lower()
+        assert "unknown" in output or "usage" in output
 
 
 class TestRemoteFetchAndCrossInstall:

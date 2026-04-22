@@ -444,7 +444,35 @@ class VdkrRunner:
         if port_forwards:
             for pf in port_forwards:
                 args.extend(["-p", pf])
-        return self.run(*args, timeout=timeout)
+        # memres start spawns background processes (QEMU VM, idle watchdog)
+        # that can inherit pipe FDs from subprocess.run(capture_output=True),
+        # causing communicate() to hang indefinitely. Use Popen with
+        # file-based output, DEVNULL stdin, and start_new_session to fully
+        # isolate the daemon process tree from the test harness.
+        cmd = [str(self.binary)]
+        if self._needs_arch_flag:
+            cmd.extend(["--arch", self.arch])
+        cmd.extend(["--state-dir", str(self.state_dir)])
+        cmd.extend(args)
+        import tempfile
+        with tempfile.TemporaryFile(mode='w+') as out:
+            proc = subprocess.Popen(
+                cmd, env=self.env,
+                stdin=subprocess.DEVNULL,
+                stdout=out, stderr=subprocess.STDOUT,
+                start_new_session=True,
+            )
+            try:
+                proc.wait(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait()
+                raise
+            out.seek(0)
+            output = out.read()
+        result = subprocess.CompletedProcess(
+            cmd, proc.returncode, stdout=output, stderr="")
+        return result
 
     def memres_stop(self, timeout=30):
         """Stop memory resident mode."""
@@ -705,7 +733,35 @@ class VpdmnRunner:
         if port_forwards:
             for pf in port_forwards:
                 args.extend(["-p", pf])
-        return self.run(*args, timeout=timeout)
+        # memres start spawns background processes (QEMU VM, idle watchdog)
+        # that can inherit pipe FDs from subprocess.run(capture_output=True),
+        # causing communicate() to hang indefinitely. Use Popen with
+        # file-based output, DEVNULL stdin, and start_new_session to fully
+        # isolate the daemon process tree from the test harness.
+        cmd = [str(self.binary)]
+        if self._needs_arch_flag:
+            cmd.extend(["--arch", self.arch])
+        cmd.extend(["--state-dir", str(self.state_dir)])
+        cmd.extend(args)
+        import tempfile
+        with tempfile.TemporaryFile(mode='w+') as out:
+            proc = subprocess.Popen(
+                cmd, env=self.env,
+                stdin=subprocess.DEVNULL,
+                stdout=out, stderr=subprocess.STDOUT,
+                start_new_session=True,
+            )
+            try:
+                proc.wait(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait()
+                raise
+            out.seek(0)
+            output = out.read()
+        result = subprocess.CompletedProcess(
+            cmd, proc.returncode, stdout=output, stderr="")
+        return result
 
     def memres_stop(self, timeout=30):
         """Stop memory resident mode."""

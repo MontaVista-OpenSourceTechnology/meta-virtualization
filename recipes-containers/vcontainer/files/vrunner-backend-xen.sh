@@ -397,13 +397,23 @@ hv_start_vm_background() {
         # Monitor process: stays alive while domain exists.
         # vcontainer-common.sh checks /proc/$pid → alive means daemon running.
         # When domain dies (xl destroy, guest reboot), monitor exits.
+        #
+        # Detach the monitor's stdio from the invoking shell: in daemon
+        # mode this process outlives vrunner.sh, and any inherited fd
+        # would keep a pipe-wrapped caller (e.g. subprocess.run with
+        # capture_output=True) blocked in communicate() until the domain
+        # exits. Redirect fd 0/1/2 and disown.
         local _domname="$HV_DOMNAME"
-        (while xl list "$_domname" >/dev/null 2>&1; do sleep 10; done) &
+        (while xl list "$_domname" >/dev/null 2>&1; do sleep 10; done) \
+            </dev/null >/dev/null 2>&1 &
         HV_VM_PID=$!
+        disown $! 2>/dev/null || true
     else
         # Ephemeral mode: capture guest console (hvc0) to log file
-        # so the monitoring loop in vrunner.sh can see output markers
-        stdbuf -oL xl console "$HV_DOMNAME" >> "$log_file" 2>&1 &
+        # so the monitoring loop in vrunner.sh can see output markers.
+        # Detach stdin so the background reader doesn't hold the caller's
+        # fd 0 open.
+        stdbuf -oL xl console "$HV_DOMNAME" </dev/null >> "$log_file" 2>&1 &
         _XEN_CONSOLE_PID=$!
         log "DEBUG" "Console capture started (PID: $_XEN_CONSOLE_PID)"
     fi

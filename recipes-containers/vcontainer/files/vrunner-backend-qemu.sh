@@ -188,10 +188,16 @@ hv_start_vm_background() {
     local log_file="$2"
     local timeout_val="$3"
 
+    # Fully detach stdio from the invoking shell. In daemon mode this
+    # process outlives vrunner.sh, and if the CLI that invoked us was
+    # wrapped by something that pipes stdout/stderr (e.g. a test harness
+    # using subprocess.run(capture_output=True)), any inherited fd here
+    # would block the parent's read/communicate() call until QEMU exits.
+    # Redirect fd 0 from /dev/null and fd 1/fd 2 to the log file.
     if [ -n "$timeout_val" ]; then
-        timeout $timeout_val $HV_CMD $HV_OPTS -append "$kernel_append" > "$log_file" 2>&1 &
+        timeout $timeout_val $HV_CMD $HV_OPTS -append "$kernel_append" </dev/null > "$log_file" 2>&1 &
     else
-        $HV_CMD $HV_OPTS -append "$kernel_append" > "$log_file" 2>&1 &
+        $HV_CMD $HV_OPTS -append "$kernel_append" </dev/null > "$log_file" 2>&1 &
     fi
     HV_VM_PID=$!
 }

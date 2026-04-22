@@ -1365,7 +1365,18 @@ if [ "$DAEMON_MODE" = "start" ]; then
         # Set up port forwards via backend (e.g., iptables for Xen)
         hv_setup_port_forwards
 
-        # Start host-side idle watchdog if timeout is set
+        # Start host-side idle watchdog if timeout is set.
+        #
+        # The watchdog is a long-running background subshell that outlives
+        # vrunner.sh itself. It MUST fully detach from the invoking shell's
+        # stdio: when the caller (e.g. the vdkr CLI, or a test harness that
+        # wraps vdkr in subprocess.run(capture_output=True)) reads
+        # stdout/stderr via pipes, any inherited write-end fd in the
+        # watchdog keeps those pipes open and blocks the caller's
+        # communicate()/read until the daemon is stopped (up to
+        # IDLE_TIMEOUT, default 30 minutes). Redirect all three fds so the
+        # watchdog holds no descriptors from the caller, and disown it so
+        # the shell's job table doesn't retain it either.
         if [ "$IDLE_TIMEOUT" -gt 0 ] 2>/dev/null; then
             ACTIVITY_FILE="$DAEMON_SOCKET_DIR/activity"
             touch "$ACTIVITY_FILE"
@@ -1399,7 +1410,8 @@ if [ "$DAEMON_MODE" = "start" ]; then
                         exit 0
                     fi
                 done
-            ) &
+            ) </dev/null >/dev/null 2>&1 &
+            disown $! 2>/dev/null || true
             log "DEBUG" "Started host-side idle watchdog (timeout: ${IDLE_TIMEOUT}s)"
         fi
 

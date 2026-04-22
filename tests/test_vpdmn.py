@@ -30,6 +30,7 @@ import json
 import os
 
 
+@pytest.mark.memres
 class TestMemresBasic:
     """Test memory resident mode basic operations.
 
@@ -199,6 +200,7 @@ class TestVrun:
         assert result.returncode in [0, 1], f"Unexpected return code: {result.returncode}"
 
 
+@pytest.mark.memres
 class TestRun:
     """Test run command with entrypoint override."""
 
@@ -294,6 +296,7 @@ class TestFallbackMode:
         assert result.returncode == 0
 
 
+@pytest.mark.memres
 class TestContainerLifecycle:
     """Test container lifecycle commands."""
 
@@ -329,6 +332,7 @@ class TestContainerLifecycle:
             vpdmn.run("rm", "-f", "test-container", check=False)
 
 
+@pytest.mark.memres
 class TestVolumeMounts:
     """Test volume mount functionality.
 
@@ -456,6 +460,7 @@ class TestVolumeMounts:
         assert "memres" in result.stderr.lower() or "daemon" in result.stderr.lower()
 
 
+@pytest.mark.memres
 class TestSystem:
     """Test system commands (run inside VM)."""
 
@@ -500,6 +505,7 @@ class TestSystem:
         assert "subcommand" in result.stderr.lower() or "requires" in result.stderr.lower()
 
 
+@pytest.mark.memres
 class TestVstorage:
     """Test vstorage commands (host-side storage management).
 

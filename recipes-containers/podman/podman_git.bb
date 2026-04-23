@@ -18,7 +18,7 @@ DEPENDS = " \
 
 SRCREV = "88c5aaeec667af94c4fe3a5c2c7a42f8cf308b93"
 SRC_URI = " \
-    git://github.com/containers/libpod.git;branch=v5.8;protocol=https;destsuffix=${GO_SRCURI_DESTSUFFIX} \
+    git://github.com/containers/podman.git;branch=v5.8;protocol=https;destsuffix=${GO_SRCURI_DESTSUFFIX} \
     ${@bb.utils.contains('PACKAGECONFIG', 'rootless', 'file://50-podman-rootless.conf', '', d)} \
 "
 
@@ -34,7 +34,7 @@ CVE_STATUS[CVE-2023-0778] = "fixed-version: fixed since v4.5.0"
 
 PACKAGES =+ "${PN}-contrib"
 
-PODMAN_PKG = "github.com/containers/libpod"
+PODMAN_PKG = "github.com/containers/podman"
 
 BUILDTAGS_EXTRA ?= "${@bb.utils.contains('VIRTUAL-RUNTIME_container_networking','cni','cni','',d)}"
 BUILDTAGS ?= "seccomp varlink \

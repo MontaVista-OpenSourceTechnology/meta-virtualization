@@ -2111,8 +2111,17 @@ def _execute(args: argparse.Namespace) -> int:
     if SKIPPED_MODULES:
         print("\n⚠️  Skipped modules (no repository metadata)")
         for (module_path, version), reason in sorted(SKIPPED_MODULES.items()):
-            print(f"   - {module_path}@{version} [{reason}]")
-        print("   Use --set-repo / --inject-commit to add missing metadata before building.")
+            print(f"\n   - {module_path}@{version} [{reason}]")
+            print()
+            print(f"     Option 1: Exclude from VCS and fetch via Go module proxy instead.")
+            print(f"               Add to your recipe (.bb):")
+            print(f'         SRC_URI += "gomod://{module_path};version={version};sha256sum=<run bitbake -c fetch to get>"')
+            print(f'         GO_MOD_VCS_EXCLUDE += "{module_path}"')
+            print()
+            print(f"     Option 2: Same result, but for direct oe-go-mod-fetcher.py invocation.")
+            print(f"               Provide the git repository URL for this module:")
+            print(f"         python3 oe-go-mod-fetcher.py --set-repo {module_path}@{version} <git-url> \\")
+            print(f"           --discovered-modules <modules.json> --git-repo <repo> --git-ref <ref> --recipedir <dir>")
 
     return exit_code
 
@@ -4062,12 +4071,21 @@ def generate_recipe(modules: List[Dict], source_dir: Path, output_dir: Optional[
     if failed_results:
         print("\n❌ Unable to verify the following module commits against their repositories:")
         for _, module_path, version, commit_hash, vcs_url, ref_hint in failed_results:
-            print(f"   - {module_path}@{version} ({commit_hash})")
+            print(f"\n   - {module_path}@{version} ({commit_hash})")
             hint = f" {ref_hint}" if ref_hint else ""
             print(f"     try: git fetch --depth=1 {vcs_url}{hint} {commit_hash}")
-            print(f"     cache: mark reachable via --inject-commit '{vcs_url} {commit_hash}'")
-            print(f"     repo : override via --set-repo {module_path}@{version} {vcs_url}")
-        print("Aborting to prevent emitting invalid SRCREVs.")
+            print()
+            print(f"     Option 1: Exclude from VCS and fetch via Go module proxy instead.")
+            print(f"               Add to your recipe (.bb):")
+            print(f'         SRC_URI += "gomod://{module_path};version={version};sha256sum=<run bitbake -c fetch to get>"')
+            print(f'         GO_MOD_VCS_EXCLUDE += "{module_path}"')
+            print()
+            print(f"     Option 2: Same result, but for direct oe-go-mod-fetcher.py invocation.")
+            print(f"               Run before generation:")
+            print(f"         python3 oe-go-mod-fetcher.py --inject-commit '{vcs_url} {commit_hash}' \\")
+            print(f"           --set-repo {module_path}@{version} {vcs_url} \\")
+            print(f"           --discovered-modules <modules.json> --git-repo <repo> --git-ref <ref> --recipedir <dir>")
+        print("\nAborting to prevent emitting invalid SRCREVs.")
         return False
 
     if validate_only:

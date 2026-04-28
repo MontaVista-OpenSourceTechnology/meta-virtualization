@@ -316,8 +316,9 @@ Quick Start:
 Architectures included: ${ARCHITECTURES}
 
 Contents:
-  init-env.sh           - Environment setup script
-  vdkr, vdkr-<arch>     - Docker CLI wrapper
+  init-env.sh               - Environment setup script (interactive bash)
+  environment-setup-ci      - CI environment (for yocto-autobuilder-helper)
+  vdkr, vdkr-<arch>        - Docker CLI wrapper
   vpdmn, vpdmn-<arch>   - Podman CLI wrapper
   vrunner.sh            - Shared QEMU runner
   vcontainer-common.sh  - Shared CLI code
@@ -407,6 +408,30 @@ ENVEOF
 
     # Create init-env.sh symlink for convenience
     ln -sf environment-setup-${REAL_MULTIMACH_TARGET_SYS} ${SDK_OUTPUT}/${SDKPATH}/init-env.sh
+
+    # -----------------------------------------------------------------------
+    # CI/AutoBuilder environment script
+    # -----------------------------------------------------------------------
+    # yocto-autobuilder-helper's enable_tools_tarball() parses environment
+    # scripts line-by-line in Python.  It only honours lines starting with
+    # "export " at column 0, only substitutes $PATH, and treats "unset " at
+    # column 0 as a removal.  It does NOT evaluate shell expressions like
+    # $(...) or variable references like $FOO.
+    #
+    # Rather than adding conditional logic to the interactive bash script,
+    # generate a separate flat file with baked-in absolute paths that the
+    # AB parser can consume directly.  SDK relocation rewrites these paths
+    # at install time just like the primary environment-setup-* script.
+    ci_script=${SDK_OUTPUT}/${SDKPATH}/environment-setup-ci
+    cat > $ci_script <<CISCRIPT
+# vcontainer CI environment — for yocto-autobuilder-helper
+# Flat export lines with absolute paths; no shell logic.
+# SDK relocation rewrites these paths at install time.
+export VCONTAINER_DIR="${SDKPATH}"
+export OECORE_NATIVE_SYSROOT="${SDKPATHNATIVE}"
+export PATH="${SDKPATH}:${SDKPATHNATIVE}/usr/bin:/usr/bin:/bin:\$PATH"
+CISCRIPT
+    chmod 755 $ci_script
 
     # Create version file
     echo "vcontainer SDK version: ${PV}" > ${SDK_OUTPUT}/${SDKPATH}/version.txt

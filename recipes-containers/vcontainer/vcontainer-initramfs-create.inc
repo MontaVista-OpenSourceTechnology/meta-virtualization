@@ -44,12 +44,6 @@ python () {
         d.setVarFlag('do_compile', 'nostamp', '1')
         d.setVarFlag('do_deploy', 'nostamp', '1')
 
-    # The kernel is built as a dependency of the rootfs image within the
-    # same multiconfig — no cross-multiconfig mcdepends needed. The
-    # previous mcdepends on mc:<mc>::virtual/kernel:do_deploy was wrong
-    # because it depended on the main config's kernel (which may be a
-    # different architecture) and deployed to DEPLOY_DIR_IMAGE (main
-    # config), not MC_DEPLOY (multiconfig).
 }
 
 # Only populate native sysroot, skip target sysroot to avoid libgcc conflicts
@@ -58,12 +52,17 @@ INHIBIT_DEFAULT_DEPS = "1"
 # Dependencies:
 # 1. The tiny initramfs image (produces cpio.gz)
 # 2. The multiconfig rootfs image (produces squashfs)
-# 3. The kernel from main build
+# 3. The kernel (deployed transitively via image.bbclass do_build)
 #
-# Both initramfs and rootfs images are in the same multiconfig
-do_compile[depends] = "${VCONTAINER_RUNTIME}-tiny-initramfs-image:do_image_complete"
-do_compile[depends] += "${VCONTAINER_RUNTIME}-rootfs-image:do_image_complete"
-# mcdepends set conditionally in anonymous python below
+# Both image recipes inherit core-image/image.bbclass which has:
+#   do_build[depends] += "virtual/kernel:do_deploy"
+# By depending on do_build (not do_image_complete), we ensure the
+# kernel is deployed to MC_DEPLOY before do_compile copies it.
+# Using do_image_complete cut the chain short — it runs before
+# do_build, so virtual/kernel:do_deploy was not guaranteed to have
+# run, causing missing kernel on sstate-accelerated builds.
+do_compile[depends] = "${VCONTAINER_RUNTIME}-tiny-initramfs-image:do_build"
+do_compile[depends] += "${VCONTAINER_RUNTIME}-rootfs-image:do_build"
 
 S = "${UNPACKDIR}"
 B = "${WORKDIR}/build"

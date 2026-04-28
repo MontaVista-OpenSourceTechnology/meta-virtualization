@@ -13,10 +13,9 @@
 #
 # Source: https://letsencrypt.org/certificates/
 
-SRC_URI += "${@bb.utils.contains('DISTRO_FEATURES', 'virtualization', \
-    'https://letsencrypt.org/certs/2024/e8.pem;name=le-e8;unpack=0 \
-     https://letsencrypt.org/certs/2024/r11.pem;name=le-r11;unpack=0', \
-    '', d)}"
+SRC_URI += "https://letsencrypt.org/certs/2024/e8.pem;name=le-e8;unpack=0 \
+            https://letsencrypt.org/certs/2024/r11.pem;name=le-r11;unpack=0"
+
 SRC_URI[le-e8.sha256sum] = "f2c0dde62e2c90e6332fa55af79ed1a0c41329ad03ecf812bd89817a2fc340a9"
 SRC_URI[le-r11.sha256sum] = "6c06a45850f93aa6e31f9388f956379d8b4fb7ffca5211b9bab4ad159bdfb7b9"
 

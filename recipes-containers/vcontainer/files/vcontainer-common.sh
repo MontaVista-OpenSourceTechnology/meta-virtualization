@@ -2488,12 +2488,20 @@ case "$COMMAND" in
             STORAGE_CMD="${COMMAND_ARGS[0]}"
         fi
 
+        # When --state-dir is passed, scan its parent as the storage root
+        # (STATE_DIR is an arch subdir like ~/.vpdmn-test/x86_64, so the
+        # parent ~/.vpdmn-test/ is the root containing all arch dirs).
+        VSTORAGE_ROOT="$DEFAULT_STATE_DIR"
+        if [ -n "$STATE_DIR" ]; then
+            VSTORAGE_ROOT="$(dirname "$STATE_DIR")"
+        fi
+
         case "$STORAGE_CMD" in
             list)
                 echo "$VCONTAINER_RUNTIME_NAME storage directories:"
                 echo ""
                 found=0
-                for state_dir in "$DEFAULT_STATE_DIR"/*/; do
+                for state_dir in "$VSTORAGE_ROOT"/*/; do
                     [ -d "$state_dir" ] || continue
                     found=1
                     instance=$(basename "$state_dir")
@@ -2522,8 +2530,8 @@ case "$COMMAND" in
                 fi
 
                 # Total size
-                if [ -d "$DEFAULT_STATE_DIR" ] && [ $found -gt 0 ]; then
-                    total=$(du -sh "$DEFAULT_STATE_DIR" 2>/dev/null | cut -f1)
+                if [ -d "$VSTORAGE_ROOT" ] && [ $found -gt 0 ]; then
+                    total=$(du -sh "$VSTORAGE_ROOT" 2>/dev/null | cut -f1)
                     echo "Total: $total"
                 fi
                 ;;
@@ -2536,7 +2544,7 @@ case "$COMMAND" in
 
             df)
                 # Detailed breakdown
-                for state_dir in "$DEFAULT_STATE_DIR"/*/; do
+                for state_dir in "$VSTORAGE_ROOT"/*/; do
                     [ -d "$state_dir" ] || continue
                     instance=$(basename "$state_dir")
                     echo "${BOLD}$instance${NC}:"
@@ -2557,7 +2565,7 @@ case "$COMMAND" in
                 arch="${COMMAND_ARGS[1]:-}"
                 if [ "$arch" = "--all" ]; then
                     # Stop any running memres first
-                    for pid_file in "$DEFAULT_STATE_DIR"/*/daemon.pid; do
+                    for pid_file in "$VSTORAGE_ROOT"/*/daemon.pid; do
                         [ -f "$pid_file" ] || continue
                         pid=$(cat "$pid_file" 2>/dev/null)
                         if [ -n "$pid" ] && [ -d "/proc/$pid" ]; then
@@ -2566,11 +2574,11 @@ case "$COMMAND" in
                         fi
                     done
                     echo -e "${YELLOW}[$VCONTAINER_RUNTIME_NAME]${NC} Removing all storage directories..."
-                    rm -rf "$DEFAULT_STATE_DIR"
+                    rm -rf "$VSTORAGE_ROOT"
                     echo -e "${GREEN}[$VCONTAINER_RUNTIME_NAME]${NC} All storage cleaned."
                 elif [ -n "$arch" ]; then
                     # Clean specific arch
-                    clean_dir="$DEFAULT_STATE_DIR/$arch"
+                    clean_dir="$VSTORAGE_ROOT/$arch"
                     if [ -d "$clean_dir" ]; then
                         # Stop memres if running
                         if [ -f "$clean_dir/daemon.pid" ]; then

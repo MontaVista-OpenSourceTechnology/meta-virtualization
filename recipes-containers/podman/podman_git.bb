@@ -36,7 +36,13 @@ PACKAGES =+ "${PN}-contrib"
 
 PODMAN_PKG = "github.com/containers/podman"
 
-BUILDTAGS_EXTRA ?= "${@bb.utils.contains('VIRTUAL-RUNTIME_container_networking','cni','cni','',d)}"
+# Include the cni build tag unless the distro explicitly selects netavark-only.
+# The runtime backend is selected via containers.conf (network_backend),
+# but podman must be compiled with the cni tag to support it at all.
+# Previously this was gated on VIRTUAL-RUNTIME_container_networking == "cni",
+# which excluded cni in vruntime builds where that variable is intentionally
+# blank (vpdmn-rootfs-image installs cni packages directly in IMAGE_INSTALL).
+BUILDTAGS_EXTRA ?= "${@'' if d.getVar('VIRTUAL-RUNTIME_container_networking') == 'netavark' else 'cni'}"
 BUILDTAGS ?= "seccomp varlink \
 ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'systemd', '', d)} \
 exclude_graphdriver_btrfs exclude_graphdriver_devicemapper ${BUILDTAGS_EXTRA}"

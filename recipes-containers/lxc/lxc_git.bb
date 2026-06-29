@@ -52,7 +52,7 @@ SRC_URI = "git://github.com/lxc/lxc.git;branch=stable-4.0;protocol=https \
 	file://CVE-2026-39402.patch \
 	"
 
-PR.= ".1"
+PR:append = ".1"
 SRCREV = "5ba5725cb4a210c25707beeca64fde5f561d1c71"
 PV = "4.0.12+git${SRCPV}"
 

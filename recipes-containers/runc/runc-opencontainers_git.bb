@@ -5,6 +5,7 @@ SRC_URI = " \
     git://github.com/opencontainers/runc;branch=release-1.1;protocol=https \
     file://0001-Makefile-respect-GOBUILDFLAGS-for-runc-and-remove-re.patch \
     file://0001-Makefile-fix-typo-in-LDFLAGS_STATIC.patch \
+    file://CVE-2026-41579.patch \
     "
 RUNC_VERSION = "1.1.14"
 

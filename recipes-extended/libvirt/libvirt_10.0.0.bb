@@ -32,6 +32,7 @@ SRC_URI = "http://libvirt.org/sources/libvirt-${PV}.tar.xz;name=libvirt \
            file://dnsmasq.conf \
            file://hook_support.py \
            file://gnutls-helper.py \
+           file://0001-build-Make-daemons-depend-on-generated-protocol.patch \
            file://0001-prevent-gendispatch.pl-generating-build-path-in-code.patch \
            file://0001-messon.build-remove-build-path-information-to-avoid-.patch \
            file://CVE-2024-1441.patch \

@@ -1,0 +1,140 @@
+From dcfe548cb01d64e2bdeac456c428e578158232b9 Mon Sep 17 00:00:00 2001
+From: Jiri Denemark <jdenemar@redhat.com>
+Date: Wed, 24 Jan 2024 19:23:54 +0100
+Subject: [PATCH] build: Make daemons depend on generated *_protocol.[ch]
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+This should fix build failures when a daemon code is compiled before the
+included *_protocol.h headers are ready, such as:
+
+    FAILED: src/virtqemud.p/remote_remote_daemon_config.c.o
+    ../src/remote/remote_daemon_config.c: In function ‘daemonConfigNew’:
+    ../src/remote/remote_daemon_config.c:111:30: error:
+        ‘REMOTE_AUTH_POLKIT’ undeclared (first use in this function)
+      111 |         data->auth_unix_rw = REMOTE_AUTH_POLKIT;
+          |                              ^~~~~~~~~~~~~~~~~~
+    ../src/remote/remote_daemon_config.c:111:30: note: each undeclared
+        identifier is reported only once for each function it appears in
+    ../src/remote/remote_daemon_config.c:115:30: error:
+        ‘REMOTE_AUTH_NONE’ undeclared (first use in this function)
+      115 |         data->auth_unix_rw = REMOTE_AUTH_NONE;
+          |                              ^~~~~~~~~~~~~~~~
+    ../src/remote/remote_daemon_config.c: In function
+        ‘daemonConfigLoadOptions’:
+    ../src/remote/remote_daemon_config.c:252:31: error:
+        ‘REMOTE_AUTH_POLKIT’ undeclared (first use in this function)
+      252 |     if (data->auth_unix_rw == REMOTE_AUTH_POLKIT) {
+          |                               ^~~~~~~~~~~~~~~~~~
+
+or
+
+    FAILED: src/virtqemud.p/remote_remote_daemon_dispatch.c.o
+    In file included from ../src/remote/remote_daemon.h:28,
+                     from ../src/remote/remote_daemon_dispatch.c:26:
+    src/remote/lxc_protocol.h:13:5: error:
+        unknown type name ‘remote_nonnull_domain’
+       13 |     remote_nonnull_domain dom;
+          |     ^~~~~~~~~~~~~~~~~~~~~
+    In file included from ../src/remote/remote_daemon.h:29,
+                     from ../src/remote/remote_daemon_dispatch.c:26:
+    src/remote/qemu_protocol.h:13:5: error:
+        unknown type name ‘remote_nonnull_domain’
+       13 |     remote_nonnull_domain dom;
+          |     ^~~~~~~~~~~~~~~~~~~~~
+    src/remote/qemu_protocol.h:14:5: error:
+        unknown type name ‘remote_nonnull_string’
+       14 |     remote_nonnull_string cmd;
+          |     ^~~~~~~~~~~~~~~~~~~~~
+    ...
+
+Upstream-Status: Backport [https://gitlab.com/libvirt/libvirt/-/commit/dcfe548cb01d64e2bdeac456c428e578158232b9]
+
+Signed-off-by: Jiri Denemark <jdenemar@redhat.com>
+Reviewed-by: Daniel P. Berrangé <berrange@redhat.com>
+---
+ po/meson.build         |  1 +
+ src/meson.build        |  6 +++++-
+ src/remote/meson.build | 15 +++++++++++----
+ 3 files changed, 17 insertions(+), 5 deletions(-)
+
+diff --git a/po/meson.build b/po/meson.build
+index a20877ad34a..592b2544479 100644
+--- a/po/meson.build
++++ b/po/meson.build
+@@ -20,6 +20,7 @@ potfiles_dep = [
+   access_gen_sources,
+   admin_client_generated,
+   admin_driver_generated,
++  remote_protocol_generated,
+   remote_driver_generated,
+   remote_daemon_generated,
+ ]
+diff --git a/src/meson.build b/src/meson.build
+index 6538c436281..f52d2d59948 100644
+--- a/src/meson.build
++++ b/src/meson.build
+@@ -616,7 +616,11 @@ foreach daemon : virt_daemons
+   bin = executable(
+     daemon['name'],
+     [
+-      daemon.get('sources', [ remote_daemon_sources, remote_daemon_generated ]),
++      daemon.get('sources', [
++        remote_protocol_generated,
++        remote_daemon_sources,
++        remote_daemon_generated
++      ]),
+       dtrace_gen_objects,
+     ],
+     c_args: [
+diff --git a/src/remote/meson.build b/src/remote/meson.build
+index 681c709823b..831acaaa015 100644
+--- a/src/remote/meson.build
++++ b/src/remote/meson.build
+@@ -7,8 +7,6 @@ remote_driver_generated = []
+
+ foreach name : [ 'remote', 'qemu', 'lxc' ]
+   client_bodies_h = '@0@_client_bodies.h'.format(name)
+-  protocol_c = '@0@_protocol.c'.format(name)
+-  protocol_h = '@0@_protocol.h'.format(name)
+   protocol_x = '@0@_protocol.x'.format(name)
+
+   remote_driver_generated += custom_target(
+@@ -20,8 +18,16 @@ foreach name : [ 'remote', 'qemu', 'lxc' ]
+     ],
+     capture: true,
+   )
++endforeach
+
+-  remote_driver_generated += custom_target(
++remote_protocol_generated = []
++
++foreach name : [ 'remote', 'qemu', 'lxc' ]
++  protocol_c = '@0@_protocol.c'.format(name)
++  protocol_h = '@0@_protocol.h'.format(name)
++  protocol_x = '@0@_protocol.x'.format(name)
++
++  remote_protocol_generated += custom_target(
+     protocol_h,
+     input: protocol_x,
+     output: protocol_h,
+@@ -32,7 +38,7 @@ foreach name : [ 'remote', 'qemu', 'lxc' ]
+     ],
+   )
+
+-  remote_driver_generated += custom_target(
++  remote_protocol_generated += custom_target(
+     protocol_c,
+     input: protocol_x,
+     output: protocol_c,
+@@ -143,6 +149,7 @@ if conf.has('WITH_REMOTE')
+   remote_driver_lib = static_library(
+     'virt_remote_driver',
+     [
++      remote_protocol_generated,
+       remote_driver_sources,
+       remote_driver_generated,
+     ],
+--
+2.43.0

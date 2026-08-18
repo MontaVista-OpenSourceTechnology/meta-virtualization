@@ -22,6 +22,7 @@ RDEPENDS:libvirt-libvirtd:append:x86 = " dmidecode"
 #connman blocks the 53 port and libvirtd can't start its DNS service
 RCONFLICTS:${PN}_libvirtd = "connman"
 
+PR:append = ".1"
 SRC_URI = "http://libvirt.org/sources/libvirt-${PV}.tar.xz;name=libvirt \
            file://libvirtd.sh \
            file://libvirtd.conf \
@@ -33,6 +34,7 @@ SRC_URI = "http://libvirt.org/sources/libvirt-${PV}.tar.xz;name=libvirt \
            file://CVE-2024-2494.patch \
            file://CVE-2024-1441.patch \
            file://CVE-2024-2496.patch \
+           file://CVE-2026-63622.patch \
           "
 
 SRC_URI[libvirt.sha256sum] = "3c6c43becffeb34a3f397c616206aa69a893ff8bf5e8208393c84e8e75352934"

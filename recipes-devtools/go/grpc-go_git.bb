@@ -7,7 +7,9 @@ LIC_FILES_CHKSUM = "file://src/${PKG_NAME}/LICENSE;md5=3b83ef96387f14655fc854ddc
 SRCNAME = "grpc-go"
 
 PKG_NAME = "google.golang.org/grpc"
-SRC_URI = "git://github.com/grpc/${SRCNAME}.git;destsuffix=git/src/${PKG_NAME};branch=v1.59.x;protocol=https"
+SRC_URI = "git://github.com/grpc/${SRCNAME}.git;destsuffix=git/src/${PKG_NAME};branch=v1.59.x;protocol=https \
+           file://CVE-2026-33186.patch;patchdir=src/${PKG_NAME} \
+           "
 
 SRCREV = "7765221f4bf6104973db7946d56936cf838cad46"
 PV = "1.59.0+git"
@@ -20,7 +22,7 @@ do_compile() {
 
 do_install() {
 	install -d ${D}${prefix}/local/go/src/${PKG_NAME}
-	for j in $(cd ${S} && find src/${PKG_NAME} -name "*.go"); do
+	for j in $(cd ${S} && find src/${PKG_NAME} -name "*.go" ! -path "*/.pc/*"); do
 	    if [ ! -d ${D}${prefix}/local/go/$(dirname $j) ]; then
 	        mkdir -p ${D}${prefix}/local/go/$(dirname $j)
 	    fi

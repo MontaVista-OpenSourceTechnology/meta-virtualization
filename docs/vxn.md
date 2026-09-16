@@ -310,6 +310,26 @@ it does NOT need `xen-host.conf` / `vxn-host.conf` in `local.conf` —
 the two paths are independent by design. See `vxn-sdk.md` for
 `bitbake vcontainer-tarball` (the full SDK build).
 
+### dom0 engine flavor at launch
+
+`docker-moby` and `podman` both own `/usr/bin/docker`, so a single dom0
+image can carry only one engine. The SDK ships a separate blob per
+flavor (`VXN_DOM0_FLAVORS = "docker podman"`, see `vxn-sdk.md`) as
+`vxn-blobs/<arch>/xen-dom0-<flavor>.wic`, and the launcher selects one:
+
+- `VXN_DOM0_FLAVOR=podman` (env) — honored by the `vxn` CLI and by
+  `boot-xen.sh`.
+- `boot-xen.sh --flavor podman` — the equivalent flag on the standalone
+  launcher.
+- `VXN_IMAGE=/path/to/xen-dom0-<flavor>.wic` — explicit blob, bypasses
+  resolution.
+
+A Xen host has a single dom0, so one flavor is active per launch;
+switching flavor = relaunch against the other blob (`vxn memres stop`
+first if a persistent dom0 is running). Default is `docker`; asking for
+a flavor the SDK didn't ship fails loudly with the available list rather
+than silently falling back.
+
 ### Blob dependencies
 
 The vruntime blobs (kernel + initramfs + rootfs) that end up on dom0

@@ -26,8 +26,8 @@ SRC_URI = " \
     file://0001-makefile-add-GOBUILDFLAGS-to-go-build-call.patch \
 "
 
-SRCREV = "1feb123afffeff312ec7fa20018c9fed23b4828a"
-PV = "1.23.0+git"
+SRCREV = "bb6c5be0b8a8fa77c265144afd5e02647672871f"
+PV = "1.24.0+git"
 GO_IMPORT = "import"
 
 S = "${UNPACKDIR}/git/src/go.podman.io/skopeo"

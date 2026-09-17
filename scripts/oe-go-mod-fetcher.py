@@ -2184,8 +2184,7 @@ def _execute(args: argparse.Namespace) -> int:
             print()
             print(f"     Option 1: Exclude from VCS and fetch via Go module proxy instead.")
             print(f"               Add to your recipe (.bb):")
-            print(f'         SRC_URI += "gomod://{module_path};version={version};sha256sum=<run bitbake -c fetch to get>"')
-            print(f'         GO_MOD_VCS_EXCLUDE += "{module_path}"')
+            _print_gomod_exclude_recipe_block(module_path, version)
             print()
             print(f"     Option 2: Same result, but for direct oe-go-mod-fetcher.py invocation.")
             print(f"               Provide the git repository URL for this module:")
@@ -2328,6 +2327,56 @@ def _stderr_indicates_dumb_http(stderr: str) -> bool:
     if not stderr:
         return False
     return "dumb http transport does not support shallow capabilities" in stderr
+
+
+def _module_path_escape(module_path: str) -> str:
+    """Go's !-escape: every uppercase letter -> '!' + lowercase.
+
+    Used to translate a canonical module path (github.com/HdrHistogram/...) to
+    its on-disk directory (github.com/!hdr!histogram/...) inside GOMODCACHE.
+    """
+    return re.sub(r'([A-Z])', lambda m: '!' + m.group(1).lower(), module_path)
+
+
+def _cached_zip_sha256(module_path: str, version: str) -> Optional[str]:
+    """Return sha256 of a module@version .zip in the discovery cache, or None.
+
+    We use this to fill in the sha256sum for the copy-paste `gomod://` hint
+    lines emitted after a discovery run. If the fetcher has resolved the
+    module far enough to download its zip (which is true for every module
+    that reaches the failed/skipped-report stage), the sha is right there
+    on disk -- no need to loop the user through a build-fetch-copy cycle.
+    """
+    if not CURRENT_GOMODCACHE:
+        return None
+    escaped = _module_path_escape(module_path)
+    zip_path = Path(CURRENT_GOMODCACHE) / "cache" / "download" / escaped / "@v" / f"{version}.zip"
+    if not zip_path.is_file():
+        return None
+    try:
+        h = hashlib.sha256()
+        with open(zip_path, "rb") as f:
+            for chunk in iter(lambda: f.read(1 << 20), b""):
+                h.update(chunk)
+        return h.hexdigest()
+    except Exception:
+        return None
+
+
+def _print_gomod_exclude_recipe_block(module_path: str, version: str, indent: str = "         ") -> None:
+    """Emit the ready-to-paste `SRC_URI += "gomod://..."` + GO_MOD_VCS_EXCLUDE
+    block for a module the fetcher couldn't handle via VCS. If the module's
+    zip is already in the discovery cache (usually the case), we compute the
+    real sha256sum and inline it instead of the placeholder — copy-paste and
+    the recipe builds without a mid-cycle bitbake -c fetch to elicit the
+    right sha.
+    """
+    sha = _cached_zip_sha256(module_path, version)
+    if sha:
+        print(f'{indent}SRC_URI += "gomod://{module_path};version={version};sha256sum={sha}"')
+    else:
+        print(f'{indent}SRC_URI += "gomod://{module_path};version={version};sha256sum=<run bitbake -c fetch to get>"')
+    print(f'{indent}GO_MOD_VCS_EXCLUDE += "{module_path}"')
 
 
 def _stderr_indicates_orphaned_commit(stderr: str) -> bool:
@@ -4345,8 +4394,7 @@ def generate_recipe(modules: List[Dict], source_dir: Path, output_dir: Optional[
             print()
             print(f"     Option 1: Exclude from VCS and fetch via Go module proxy instead.")
             print(f"               Add to your recipe (.bb):")
-            print(f'         SRC_URI += "gomod://{module_path};version={version};sha256sum=<run bitbake -c fetch to get>"')
-            print(f'         GO_MOD_VCS_EXCLUDE += "{module_path}"')
+            _print_gomod_exclude_recipe_block(module_path, version)
             print()
             print(f"     Option 2: Same result, but for direct oe-go-mod-fetcher.py invocation.")
             print(f"               Run before generation:")

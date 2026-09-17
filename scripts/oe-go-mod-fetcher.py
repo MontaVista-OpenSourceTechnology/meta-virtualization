@@ -2329,6 +2329,46 @@ def _stderr_indicates_dumb_http(stderr: str) -> bool:
     return "dumb http transport does not support shallow capabilities" in stderr
 
 
+MVS_SELECTED_CACHE: Dict[str, Optional[str]] = {}
+
+
+def _mvs_selected_version(module_path: str) -> Optional[str]:
+    """Return the version of module_path that MVS selects for the current
+    build, or None if we can't determine it.
+
+    Uses `go list -m -json <module>` in CURRENT_SOURCE_DIR. Called from the
+    failed_results / SKIPPED_MODULES hint printer to warn the user when the
+    fetcher's reported version is only a /go.mod-only entry in go.sum, while
+    the version the build ACTUALLY uses (the MVS winner) is different -- so
+    a naive copy-paste of the fetcher's suggested gomod:// line pins the
+    wrong version and the build still fails at compile time.
+    """
+    if module_path in MVS_SELECTED_CACHE:
+        return MVS_SELECTED_CACHE[module_path]
+    if not CURRENT_SOURCE_DIR:
+        MVS_SELECTED_CACHE[module_path] = None
+        return None
+    env = os.environ.copy()
+    env.setdefault('GOFLAGS', '-mod=mod')
+    try:
+        result = subprocess.run(
+            ['go', 'list', '-m', '-json', module_path],
+            cwd=str(CURRENT_SOURCE_DIR),
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=GO_CMD_TIMEOUT,
+            check=True,
+        )
+        info = json.loads(result.stdout)
+        ver = info.get('Version')
+        MVS_SELECTED_CACHE[module_path] = ver
+        return ver
+    except Exception:
+        MVS_SELECTED_CACHE[module_path] = None
+        return None
+
+
 def _module_path_escape(module_path: str) -> str:
     """Go's !-escape: every uppercase letter -> '!' + lowercase.
 
@@ -2370,12 +2410,28 @@ def _print_gomod_exclude_recipe_block(module_path: str, version: str, indent: st
     real sha256sum and inline it instead of the placeholder — copy-paste and
     the recipe builds without a mid-cycle bitbake -c fetch to elicit the
     right sha.
+
+    If the failing version is not what MVS selects for this build (i.e. it's
+    a /go.mod-only entry in go.sum), emit a second gomod:// line pinning the
+    MVS-selected version too. Without that, a naive paste of only the failing
+    version's line still leaves the compile-time cache missing the version
+    the build actually uses -- the exact trap that produced the k3s
+    x/mod@v0.6.0-dev -> compile-fails-on-x/mod@v0.38.0 sequence.
     """
-    sha = _cached_zip_sha256(module_path, version)
-    if sha:
-        print(f'{indent}SRC_URI += "gomod://{module_path};version={version};sha256sum={sha}"')
-    else:
-        print(f'{indent}SRC_URI += "gomod://{module_path};version={version};sha256sum=<run bitbake -c fetch to get>"')
+    def emit_line(v: str) -> None:
+        sha = _cached_zip_sha256(module_path, v)
+        if sha:
+            print(f'{indent}SRC_URI += "gomod://{module_path};version={v};sha256sum={sha}"')
+        else:
+            print(f'{indent}SRC_URI += "gomod://{module_path};version={v};sha256sum=<run bitbake -c fetch to get>"')
+
+    emit_line(version)
+    selected = _mvs_selected_version(module_path)
+    if selected and selected != version:
+        print(f'{indent}# NOTE: {version} above is a /go.mod-only reference in go.sum; MVS')
+        print(f'{indent}# selects {selected} for this build. The version below is the one your')
+        print(f'{indent}# compile actually needs — keep BOTH lines.')
+        emit_line(selected)
     print(f'{indent}GO_MOD_VCS_EXCLUDE += "{module_path}"')
 
 

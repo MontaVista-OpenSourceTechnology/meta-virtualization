@@ -35,14 +35,6 @@ SRCREV_k3s = "dca49392c395b1acc6bb6883079151592a968844"
 SRCREV_FORMAT = "k3s_fuse"
 PV = "v1.36.4+k3s1+git"
 
-# Modules where discover_and_generate cannot resolve a working git ref
-# (orphaned upstream commits after force-push, or tag no longer points at
-# the proxy-cached sha). Fetch these directly from the Go module proxy.
-SRC_URI += "gomod://golang.org/x/mod;version=v0.38.0;sha256sum=b19d1a19527f75bf148198b44be37784f7d7d22597b46e260bf22d1b320fe12c"
-SRC_URI += "gomod://github.com/open-policy-agent/opa;version=v0.70.0;sha256sum=08e535333937b88a21096a8cfabf928513f6565c3b199c662c62e167837e71b2"
-SRC_URI += "gomod://github.com/google/cel-go;version=v0.26.1;sha256sum=d048465c2e939d536af9bf670c066473470e50de7fd20c63c0ba7df39a99c461"
-GO_MOD_VCS_EXCLUDE = "golang.org/x/mod github.com/open-policy-agent/opa github.com/google/cel-go"
-
 # K3s uses flannel for CNI networking, not the containerd bridge config
 CNI_NETWORKING_FILES ?= "${UNPACKDIR}/cni-flannel.conflist"
 

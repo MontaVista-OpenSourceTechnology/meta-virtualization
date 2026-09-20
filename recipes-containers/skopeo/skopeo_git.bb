@@ -26,7 +26,7 @@ SRC_URI = " \
     file://0001-makefile-add-GOBUILDFLAGS-to-go-build-call.patch \
 "
 
-SRCREV = "bb6c5be0b8a8fa77c265144afd5e02647672871f"
+SRCREV = "d0e279b08613b5c51367319f2c6d89016e668a24"
 PV = "1.24.0+git"
 GO_IMPORT = "import"
 

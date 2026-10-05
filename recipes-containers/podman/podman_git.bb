@@ -76,6 +76,19 @@ EXTRA_OEMAKE = " \
 # build and install the docker wrapper. If docker is enabled in the
 # packageconfig, the podman package will rconfict with docker.
 PACKAGECONFIG ?= "docker"
+PACKAGECONFIG[manpages] = ",,go-md2man-native"
+# When manpages are enabled, build the docs target with go-md2man-native
+# and skip the host 'man -l' check via MAN_L=true; also install them.
+PODMAN_DOCS_TARGET = "${@bb.utils.contains('PACKAGECONFIG', 'manpages', 'docs', '', d)}"
+PODMAN_DOCS_ARGS = "${@bb.utils.contains('PACKAGECONFIG', 'manpages', 'GOMD2MAN=${STAGING_BINDIR_NATIVE}/go-md2man MAN_L=true', '', d)}"
+PODMAN_INSTALL_MAN = "${@bb.utils.contains('PACKAGECONFIG', 'manpages', 'install.man', '', d)}"
+PACKAGECONFIG[rootless] = ",,,fuse-overlayfs slirp4netns,,"
+# Optional public CA bundle for verifying TLS against public registries. OFF by
+# default -- podman has shipped without ca-certificates for some time and we keep
+# that default; enable it per-config where a registry pull is expected (e.g. the
+# vxn podman dom0 sets PACKAGECONFIG:append:pn-podman = " ca-certs"). Mirrors the
+# optional-packageconfig approach docker uses (commit 39d09524), never a hard dep.
+PACKAGECONFIG[ca-certs] = ",,,ca-certificates"
 
 do_compile() {
 	cd ${S}/src
@@ -102,7 +115,8 @@ do_compile() {
 	export NATIVE_GOOS=${BUILD_GOOS}
 	export NATIVE_GOARCH=${BUILD_GOARCH}
 
-	oe_runmake NATIVE_GOOS=${BUILD_GOOS} NATIVE_GOARCH=${BUILD_GOARCH} BUILDTAGS="${BUILDTAGS}"
+	oe_runmake binaries ${PODMAN_DOCS_TARGET} ${PODMAN_DOCS_ARGS} \
+                  NATIVE_GOOS=${BUILD_GOOS} NATIVE_GOARCH=${BUILD_GOARCH} BUILDTAGS="${BUILDTAGS}"
 }
 
 do_install() {
@@ -112,7 +126,7 @@ do_install() {
 	export GOPATH="${S}/src/.gopath"
 	export GOROOT="${STAGING_DIR_NATIVE}/${nonarch_libdir}/${HOST_SYS}/go"
 
-	oe_runmake install DESTDIR="${D}"
+	oe_runmake install.bin ${PODMAN_INSTALL_MAN} install.systemd DESTDIR="${D}"
 	if ${@bb.utils.contains('PACKAGECONFIG', 'docker', 'true', 'false', d)}; then
 		oe_runmake install.docker DESTDIR="${D}"
 	fi

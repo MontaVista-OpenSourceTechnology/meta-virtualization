@@ -18,6 +18,8 @@ SRC_URI = "git://github.com/containers/crun.git;branch=main;name=crun;protocol=h
            file://CVE-2025-24965.patch \
            file://CVE-2026-88264-01.patch \
            file://CVE-2026-88264-02.patch \
+           file://CVE-2026-47766-01.patch \
+           file://CVE-2026-47766-02.patch \
           "
 
 PV = "v1.14.3+git${SRCREV_crun}"

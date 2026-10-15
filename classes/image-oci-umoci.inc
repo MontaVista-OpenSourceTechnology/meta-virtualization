@@ -421,6 +421,42 @@ PYEOF
     bbnote "OCI fix: Layer whiteout fix complete"
 }
 
+# Restore setuid/setgid bits on the bundle rootfs just before `umoci repack`.
+#
+# umoci is a Go binary; its file operations go straight to syscalls, so pseudo's
+# LD_PRELOAD interposition cannot intercept it and it reads the REAL on-disk
+# modes. pseudo strips setuid/setgid from the real files (it keeps the true mode
+# only in its own database), so umoci repack would otherwise drop every
+# setuid/setgid bit -- breaking sudo, su, ping, mount, ... in the image.
+#
+# We let umoci do all of its normal work (layer diff, whiteouts, manifest and
+# config) and only fix the modes it is about to read: capture the special-bit
+# files from pseudo's view (find reports the database mode, e.g. 4755), then
+# re-apply them to the real files with pseudo disabled. PSEUDO_DISABLED=1 is the
+# reliable escape -- unsetting LD_PRELOAD does not work because pseudo re-injects
+# it into child processes. After this, the real files carry the special bits and
+# umoci bakes them into the layer. This mirrors oe-core's after-the-fact perms
+# fixups and keeps umoci authoritative for layering.
+oci_restore_setuid_before_repack() {
+    local rootfs="$1"
+    [ -d "$rootfs" ] || return 0
+    local plist="${WORKDIR}/oci-setuid-$$.list"
+    find "$rootfs" -type f -perm /06000 -printf '%m\t%P\n' > "$plist" 2>/dev/null || true
+    if [ ! -s "$plist" ]; then
+        rm -f "$plist"
+        return 0
+    fi
+    local _n=0
+    while IFS="$(printf '\t')" read -r _mode _path; do
+        [ -n "$_path" ] || continue
+        if PSEUDO_DISABLED=1 chmod "$_mode" "$rootfs/$_path" 2>/dev/null; then
+            _n=$(expr $_n + 1)
+        fi
+    done < "$plist"
+    bbnote "OCI: restored setuid/setgid on $_n file(s) before repack"
+    rm -f "$plist"
+}
+
 IMAGE_CMD:oci() {
     umoci_options=""
 
@@ -667,6 +703,7 @@ IMAGE_CMD:oci() {
 
             # Repack to create layer
             bbnote "OCI: Repacking layer $oci_layer_name"
+            oci_restore_setuid_before_repack "$image_bundle_name/rootfs"
             umoci repack --image "$image_name:$repack_tag" "$image_bundle_name"
 
             # Re-unpack for next layer if not the last one
@@ -703,6 +740,7 @@ IMAGE_CMD:oci() {
             cp -r -a --no-preserve=ownership ${IMAGE_ROOTFS}/* $image_bundle_name/rootfs
         fi
 
+        oci_restore_setuid_before_repack "$image_bundle_name/rootfs"
         bbdebug 1 "OCI: umoci repack --image $image_name:$repack_tag $image_bundle_name"
         umoci repack --image $image_name:$repack_tag $image_bundle_name
     fi

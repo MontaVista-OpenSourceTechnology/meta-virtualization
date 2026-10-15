@@ -160,6 +160,37 @@ def get_oci_layer_blob_sizes(oci_dir):
     return sizes
 
 
+def get_oci_setuid_entries(oci_dir):
+    """Scan every layer blob (gzipped tar) and return the setuid/setgid
+    entries as (name, mode, uid) tuples.
+
+    umoci repack reads the real bundle filesystem, which pseudo strips of
+    setuid/setgid bits, so before the before-repack mode fixup this list
+    would come back empty even when the image installs setuid binaries
+    (sudo, su, busybox, passwd, ...). A non-empty result owned by uid 0 is
+    the signal that the fixup put the bits back where umoci can bake them.
+    """
+    import tarfile
+
+    blobs_dir = oci_dir / "blobs" / "sha256"
+    if not blobs_dir.is_dir():
+        return None
+    special = []
+    for blob in sorted(blobs_dir.iterdir()):
+        if not blob.is_file():
+            continue
+        try:
+            tf = tarfile.open(blob, mode="r:*")
+        except (tarfile.TarError, OSError):
+            # config/manifest JSON blobs are not tar archives -- skip
+            continue
+        with tf:
+            for m in tf.getmembers():
+                if m.isfile() and (m.mode & 0o4000 or m.mode & 0o2000):
+                    special.append((m.name, m.mode, m.uid))
+    return special
+
+
 def get_task_log(build_dir, machine, recipe, task):
     """Get the path to a bitbake task log."""
     work_dir = build_dir / "tmp" / "work"
@@ -227,7 +258,7 @@ class TestMultiLayerOCIBuild:
 
     @pytest.mark.slow
     def test_multilayer_produces_correct_layers(self, build_dir, deploy_dir):
-        """Test that multi-layer build produces 3 layers."""
+        """Test that multi-layer build produces 4 layers."""
         # Ensure the recipe is built
         result = run_bitbake(build_dir, "app-container-multilayer", timeout=3600)
         if result.returncode != 0:
@@ -245,7 +276,7 @@ class TestMultiLayerOCIBuild:
         # Check layer count
         layer_count = get_oci_layer_count(oci_dir)
         assert layer_count is not None, f"Failed to inspect OCI image: {oci_dir}"
-        assert layer_count == 3, f"Expected 3 layers, got {layer_count}"
+        assert layer_count == 4, f"Expected 4 layers, got {layer_count}"
 
         # Check that every layer actually has content. A "packages" layer
         # whose install silently failed (e.g. missing pm.update() on the
@@ -264,6 +295,42 @@ class TestMultiLayerOCIBuild:
             f"{empty}. Each layer should exceed {min_size} bytes; smaller "
             f"means the layer install produced an empty tarball -- typically "
             f"a silent pm.install() failure demoted to bb.warn()."
+        )
+
+    @pytest.mark.slow
+    def test_multilayer_preserves_setuid(self, build_dir, deploy_dir):
+        """setuid/setgid bits must survive into the OCI layers.
+
+        umoci repack reads the real bundle filesystem to build each layer,
+        but umoci's syscalls bypass pseudo, which strips setuid/setgid from
+        the real files (tracking the true mode only in its database). Without
+        the before-repack mode fixup, every setuid/setgid bit is lost -- sudo
+        refuses to run with 'must be owned by uid 0 and have the setuid bit
+        set'. The 'suid' layer installs shadow (e.g. /usr/bin/passwd, 4755);
+        this asserts at least one setuid/setgid file survives, owned by root.
+        """
+        result = run_bitbake(build_dir, "app-container-multilayer", timeout=3600)
+        if result.returncode != 0:
+            pytest.skip("Build failed, skipping setuid check")
+
+        oci_dirs = list(deploy_dir.glob("app-container-multilayer*-oci"))
+        assert len(oci_dirs) > 0, "No OCI directory found for app-container-multilayer"
+        oci_dir = oci_dirs[0]
+        if oci_dir.is_symlink():
+            oci_dir = oci_dir.resolve()
+
+        special = get_oci_setuid_entries(oci_dir)
+        assert special is not None, f"Failed to read layer blobs from {oci_dir}"
+        assert special, (
+            "No setuid/setgid files in any OCI layer. The image installs "
+            "setuid binaries (shadow's passwd, busybox), so an empty result "
+            "means umoci repack dropped the bits -- the pseudo/umoci mode "
+            "fixup before repack regressed."
+        )
+        # The special bits must be on root-owned files to be meaningful.
+        root_owned = [e for e in special if e[2] == 0]
+        assert root_owned, (
+            f"setuid/setgid files exist but none are owned by uid 0: {special}"
         )
 
 
@@ -295,7 +362,7 @@ class TestLayerCaching:
 
         # Check for cache entries (format: {hash}-{layer_name})
         cache_entries = list(layer_cache_dir.iterdir())
-        assert len(cache_entries) >= 3, f"Expected at least 3 cache entries, found {len(cache_entries)}"
+        assert len(cache_entries) >= 4, f"Expected at least 4 cache entries, found {len(cache_entries)}"
 
         # Check for expected layer names
         entry_names = [e.name for e in cache_entries]
@@ -363,7 +430,7 @@ class TestLayerCaching:
             # Count hits vs misses
             hits = log_content.count("OCI Cache HIT")
             misses = log_content.count("OCI Cache MISS")
-            assert hits >= 3, f"Expected at least 3 cache hits, got {hits} hits and {misses} misses"
+            assert hits >= 4, f"Expected at least 4 cache hits, got {hits} hits and {misses} misses"
 
 
 class TestSingleLayerBackwardCompat:

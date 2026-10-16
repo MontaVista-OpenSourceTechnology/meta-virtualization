@@ -16,6 +16,7 @@ SRC_URI = "git://github.com/containerd/containerd;branch=release/2.2;protocol=ht
            file://CVE-2026-50195.patch \
            file://CVE-2026-53492.patch \
            file://CVE-2026-53489.patch \
+           file://CVE-2026-53495.patch \
           "
 
 # Apache-2.0 for containerd

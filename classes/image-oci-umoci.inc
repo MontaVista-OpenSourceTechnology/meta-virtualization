@@ -18,13 +18,42 @@ def oci_compute_layer_cache_key(d, layer_name, layer_type, layer_packages):
     Returns: (cache_key, cache_info) tuple where cache_info is human-readable
     """
     import hashlib
-    import os
     import json
+    import oe.packagedata
 
     packages = sorted(layer_packages.split())
-    pkgdata_dir = d.getVar('PKGDATA_DIR')
     machine = d.getVar('MACHINE')
     tune_pkgarch = d.getVar('TUNE_PKGARCH')
+
+    # Resolve the full runtime dependency closure of the layer's packages
+    # (each resolved package name -> its PKGV) from pkgdata, and key on THAT.
+    #
+    # Keying only on the literal names in OCI_LAYERS plus their own PKGV misses
+    # packagegroup content changes: a packagegroup is a near-empty recipe whose
+    # payload is its RDEPENDS, so "RDEPENDS:packagegroup-x:append = ' foo'"
+    # changes what gets installed without changing the packagegroup's name or
+    # PKGV. do_rootfs re-resolves the closure and picks foo up, but the OCI
+    # layer cache would stay a stale HIT. Walking RDEPENDS (which pkgdata
+    # reflects, since the append re-runs the packagegroup's do_packagedata)
+    # folds foo and its version into the key, so the layer correctly MISSes.
+    closure = {}
+
+    def _resolve(pkg):
+        if pkg in closure:
+            return
+        closure[pkg] = '?'   # record the name even if it is not packaged yet
+        try:
+            subd = oe.packagedata.read_subpkgdata_dict(pkg, d)
+        except Exception:
+            return
+        closure[pkg] = subd.get('PKGV', '?')
+        rdeps = subd.get('RDEPENDS', '')
+        if rdeps:
+            for dep in bb.utils.explode_deps(rdeps):
+                _resolve(dep)
+
+    for pkg in packages:
+        _resolve(pkg)
 
     # Build cache key components
     cache_components = {
@@ -33,34 +62,19 @@ def oci_compute_layer_cache_key(d, layer_name, layer_type, layer_packages):
         'packages': packages,
         'machine': machine,
         'tune_pkgarch': tune_pkgarch,
-        'pkg_versions': {}
+        # name -> PKGV across the full RDEPENDS closure (sorted in the JSON)
+        'pkg_closure': closure,
     }
-
-    # Get package versions from pkgdata
-    for pkg in packages:
-        pkg_info_file = os.path.join(pkgdata_dir, 'runtime', pkg)
-        if os.path.exists(pkg_info_file):
-            try:
-                with open(pkg_info_file, 'r') as f:
-                    for line in f:
-                        if line.startswith('PKGV:'):
-                            cache_components['pkg_versions'][pkg] = line.split(':', 1)[1].strip()
-                            break
-                        elif line.startswith(f'PKGV_{pkg}:'):
-                            cache_components['pkg_versions'][pkg] = line.split(':', 1)[1].strip()
-                            break
-            except Exception:
-                pass
 
     # Create deterministic JSON for hashing
     cache_json = json.dumps(cache_components, sort_keys=True)
     cache_key = hashlib.sha256(cache_json.encode()).hexdigest()[:16]
 
     # Human-readable info for logging
-    pkg_vers = [f"{p}={cache_components['pkg_versions'].get(p, '?')}" for p in packages[:3]]
+    pkg_vers = [f"{p}={closure.get(p, '?')}" for p in packages[:3]]
     if len(packages) > 3:
         pkg_vers.append(f"...+{len(packages)-3} more")
-    cache_info = f"{layer_name}:{' '.join(pkg_vers)}"
+    cache_info = f"{layer_name}:{' '.join(pkg_vers)} (closure={len(closure)})"
 
     return cache_key, cache_info
 

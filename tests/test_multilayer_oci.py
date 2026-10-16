@@ -585,3 +585,110 @@ class TestLayerTypes:
         class_file = meta_virt_dir / "classes" / "image-oci.bbclass"
         content = class_file.read_text()
         assert "files" in content, "files layer type should be documented"
+
+
+class TestLayerCacheKeyClosure:
+    """The OCI layer cache key must reflect the resolved RDEPENDS closure.
+
+    Logic-level guard for the bug where appending to a packagegroup's
+    RDEPENDS (e.g. 'RDEPENDS:packagegroup-x:append = " libxcrypt-dev"')
+    rebuilt the rootfs but left the OCI layer a stale cache HIT. The key
+    used to hash only the literal package names in OCI_LAYERS plus their own
+    PKGV; a packagegroup's name and PKGV do not change when its RDEPENDS do,
+    so the key never moved. The fix hashes the full RDEPENDS closure.
+
+    This reads the real pkgdata the bbclass function reads
+    (oe.packagedata.read_subpkgdata_dict parses the same runtime/<pkg>
+    files) and asserts the closure key flips on a simulated packagegroup
+    RDEPENDS append while the old name-only key does not. It is not
+    build-gated, but needs a prior build's pkgdata; it skips otherwise.
+    """
+
+    @staticmethod
+    def _pkgdata_runtime(build_dir, machine):
+        d = build_dir / "tmp" / "pkgdata" / machine / "runtime"
+        return d if d.is_dir() else None
+
+    @staticmethod
+    def _read(runtime_dir, pkg, overrides=None):
+        # Mirror oe.packagedata.read_subpkgdata_dict: parse KEY: value, strip
+        # the ":<pkg>" override suffix so RDEPENDS:<pkg> becomes RDEPENDS.
+        out = {}
+        fn = runtime_dir / pkg
+        if fn.exists():
+            for line in fn.read_text().splitlines():
+                if ":" in line:
+                    k, v = line.split(":", 1)
+                    if k.endswith(":" + pkg):
+                        k = k[: -(len(pkg) + 1)]
+                    out[k.strip()] = v.strip()
+        if overrides and pkg in overrides:
+            out["RDEPENDS"] = (out.get("RDEPENDS", "") + " " + overrides[pkg]).strip()
+        return out
+
+    @classmethod
+    def _explode(cls, rdeps):
+        import re
+        return re.sub(r"\([^)]*\)", "", rdeps).split()
+
+    @classmethod
+    def _nameonly_key(cls, runtime_dir, pkgs, overrides=None):
+        import hashlib, json
+        vers = {p: cls._read(runtime_dir, p, overrides).get("PKGV", "?") for p in pkgs}
+        comps = {"packages": sorted(pkgs), "pkg_versions": vers}
+        return hashlib.sha256(json.dumps(comps, sort_keys=True).encode()).hexdigest()[:16]
+
+    @classmethod
+    def _closure_key(cls, runtime_dir, pkgs, overrides=None):
+        import hashlib, json
+        closure = {}
+
+        def resolve(pkg):
+            if pkg in closure:
+                return
+            closure[pkg] = "?"
+            subd = cls._read(runtime_dir, pkg, overrides)
+            closure[pkg] = subd.get("PKGV", "?")
+            for dep in cls._explode(subd.get("RDEPENDS", "")):
+                resolve(dep)
+
+        for p in sorted(pkgs):
+            resolve(p)
+        comps = {"packages": sorted(pkgs), "pkg_closure": closure}
+        key = hashlib.sha256(json.dumps(comps, sort_keys=True).encode()).hexdigest()[:16]
+        return key, len(closure)
+
+    def _find_packagegroup(self, runtime_dir):
+        for f in sorted(runtime_dir.glob("packagegroup-*")):
+            for line in f.read_text().splitlines():
+                if line.startswith("RDEPENDS:" + f.name + ":") and line.split(":", 2)[-1].strip():
+                    return f.name
+        return None
+
+    def test_closure_key_invalidates_on_packagegroup_change(self, build_dir, machine):
+        runtime_dir = self._pkgdata_runtime(build_dir, machine)
+        if runtime_dir is None:
+            pytest.skip("no pkgdata runtime dir (build something first)")
+        pg = self._find_packagegroup(runtime_dir)
+        if pg is None:
+            pytest.skip("no packagegroup with RDEPENDS in pkgdata")
+
+        pkgs = [pg]
+        # a package guaranteed not already in the group's closure
+        extra = {pg: "this-pkg-does-not-exist-xyzzy"}
+
+        old_before = self._nameonly_key(runtime_dir, pkgs)
+        old_after = self._nameonly_key(runtime_dir, pkgs, extra)
+        new_before, n = self._closure_key(runtime_dir, pkgs)
+        new_after, _ = self._closure_key(runtime_dir, pkgs, extra)
+
+        assert n > 1, f"closure for {pg} should resolve beyond the group itself, got {n}"
+        # name-only key is blind to the RDEPENDS change (the original bug)
+        assert old_before == old_after, (
+            "name-only key unexpectedly changed; test assumption broken"
+        )
+        # closure key must move when the packagegroup's RDEPENDS change
+        assert new_before != new_after, (
+            f"closure cache key did not change when {pg} RDEPENDS gained a "
+            f"package -- the cache would serve a stale layer (regression)."
+        )

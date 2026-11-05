@@ -471,6 +471,41 @@ oci_restore_setuid_before_repack() {
     rm -f "$plist"
 }
 
+# Deploy the runtime bundle, unpacked from the final image. umoci writes a
+# config.json only when it unpacks an image, and the umoci config calls in
+# IMAGE_CMD:oci change the image config, not the working bundle, which was
+# unpacked before them. This runs after IMAGE_CMD:oci and the other functions
+# that run after it, some of which add layers to the image, such as
+# fix_oci_home_perms in container-nonroot-user, so they are in the bundle too.
+#
+# The tarball is made by scripts/oci-bundle-archive.py in a process with pseudo
+# disabled, as pseudo hides the ownership umoci records in xattrs, and can't be
+# disabled within a process it is already running in.
+python oci_deploy_bundle() {
+    deploy = d.getVar('IMGDEPLOYDIR')
+    image = d.expand('${IMAGE_NAME}${IMAGE_NAME_SUFFIX}-oci')
+    bundle = os.path.join(deploy, image + '-bundle')
+    tag = d.getVar('OCI_IMAGE_TAG')
+    archive = bb.utils.which(d.getVar('BBPATH'), 'scripts/oci-bundle-archive.py')
+
+    bb.utils.remove(bundle, recurse=True)
+    bb.process.run(['umoci', 'unpack', '--rootless', '--image', '%s:%s' % (image, tag), bundle],
+                   cwd=deploy)
+    bb.process.run(['python3', archive, bundle, bundle + '.tar'],
+                   env=dict(os.environ, PSEUDO_DISABLED='1'))
+    bb.utils.remove(bundle, recurse=True)
+
+    link = os.path.join(deploy, '%s-%s-oci-bundle.tar' % (d.getVar('IMAGE_BASENAME'), tag.replace(':', '_')))
+    if os.path.lexists(link):
+        os.remove(link)
+    os.symlink(os.path.basename(bundle) + '.tar', link)
+
+    # The image was only made for the bundle, and functions before this one may
+    # have made tarballs of it
+    for name in (image, image + '.tar', image + '-dir.tar'):
+        bb.utils.remove(os.path.join(deploy, name), recurse=True)
+}
+
 IMAGE_CMD:oci() {
     umoci_options=""
 
@@ -849,6 +884,12 @@ IMAGE_CMD:oci() {
     # OCI_IMAGE_TAG may contain ":", but these are not allowed in OCI file
     # names so replace them
     image_tag="${@d.getVar("OCI_IMAGE_TAG").replace(":", "_")}"
+
+    if [ "${OCI_IMAGE_OUTPUT_MODE}" = "bundle" ]; then
+        # oci_deploy_bundle deploys the bundle and removes the image
+        rm -rf "$image_bundle_name"
+        return
+    fi
 
     # make a tar version of the image direcotry
     #  1) image_name.tar: compatible with oci tar format, blobs and rootfs

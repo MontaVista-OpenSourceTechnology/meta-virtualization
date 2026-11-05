@@ -280,6 +280,13 @@ OCI_LAYER_CACHE_DIR ?= "${TOPDIR}/oci-layer-cache/${MACHINE}"
 # bundled into a tarball.
 OCI_IMAGE_TAR_OUTPUT ?= "true"
 
+# What the oci image type deploys, one or the other:
+#   image:  the OCI image directory and its tarballs
+#   bundle: only an OCI runtime bundle tarball (config.json and rootfs/), unpacked
+#           from the final image, for use with runtimes such as crun and runc.
+#           Requires the umoci backend.
+OCI_IMAGE_OUTPUT_MODE ?= "image"
+
 # Generate a subarch that is appropriate to OCI image
 # types. This is typically only ARM architectures at the
 # moment.
@@ -335,6 +342,20 @@ python __anonymous() {
         if layer_mode != 'single' or base_image:
             bb.fatal("Multi-layer OCI requires umoci backend. "
                      "Set OCI_IMAGE_BACKEND = 'umoci' or remove OCI_BASE_IMAGE")
+
+    output_mode = d.getVar('OCI_IMAGE_OUTPUT_MODE')
+    if output_mode not in ('image', 'bundle'):
+        bb.fatal("OCI_IMAGE_OUTPUT_MODE must be 'image' or 'bundle', not '%s'" % output_mode)
+    if output_mode == 'bundle' and backend != 'umoci':
+        bb.fatal("OCI_IMAGE_OUTPUT_MODE = 'bundle' is not supported by the '%s' backend, "
+                 "which cannot unpack an image into a runtime bundle. "
+                 "Set OCI_IMAGE_BACKEND = 'umoci' or OCI_IMAGE_OUTPUT_MODE = 'image'" % backend)
+    if output_mode == 'bundle':
+        # Here rather than with '+=', so it comes after the functions that are
+        # added that way, which may add layers to the image
+        d.appendVarFlag('do_image_oci', 'postfuncs', ' oci_deploy_bundle')
+        archive = bb.utils.which(d.getVar('BBPATH'), 'scripts/oci-bundle-archive.py')
+        d.appendVarFlag('do_image_oci', 'file-checksums', ' %s:True' % archive)
 
     # Validate multi-layer mode configuration and add dependencies
     if layer_mode == 'multi':

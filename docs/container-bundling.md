@@ -315,7 +315,40 @@ The image type then deploys `${IMAGE_BASENAME}-latest-oci-bundle.tar`, holding
 `config.json` and `rootfs/`. Without `image` in the list, there is no OCI image
 directory or image tarballs. The bundle is unpacked from the final image, so `process.args` is the entrypoint
 followed by the cmd. Device nodes do not survive in `rootfs/`, so anything beyond
-the runtime's default devices must be listed in `linux.devices`.
+the runtime's default devices must be listed in `OCI_RUNTIME_DEVICES`.
+
+### OCI Runtime Bundle Configuration
+
+These set the OCI runtime spec configuration of a bundle, and don't affect the
+image output. `process.args`, `env`, `cwd` and `user` in `config.json` come from
+the `OCI_IMAGE_*` settings. The rest comes from these variables, and is what will
+run on the target rather than the configuration umoci generates for the build
+user. What a variable lists is exactly what is emitted, so normal bitbake syntax
+replaces (`=`) or adjusts (`+=`, `:remove`) a default, and an empty value means
+nothing at all. See `image-oci.bbclass` for the defaults.
+
+| Variable | Format |
+|----------|--------|
+| `OCI_RUNTIME_MOUNTS` | `destination:type:source[:option,option]` |
+| `OCI_RUNTIME_NAMESPACES` | `type` for a private one, `type=/path` to join one. Not listed means shared with the host |
+| `OCI_RUNTIME_UID_MAPPINGS`, `OCI_RUNTIME_GID_MAPPINGS` | `containerID:hostID:size`. Setting both gives a private `user` namespace |
+| `OCI_RUNTIME_CAPABILITIES` | Default for each set below |
+| `OCI_RUNTIME_CAPABILITIES_BOUNDING`, `_EFFECTIVE`, `_INHERITABLE`, `_PERMITTED`, `_AMBIENT` | Capability names |
+| `OCI_RUNTIME_DEVICES` | `path:type:major:minor[:mode[:uid:gid]]`, with an octal mode. Also allows access to the device |
+| `OCI_RUNTIME_RLIMITS` | `type:soft:hard` |
+| `OCI_RUNTIME_MASKED_PATHS`, `OCI_RUNTIME_READONLY_PATHS` | Paths |
+| `OCI_RUNTIME_HOSTNAME` | Only emitted with a private `uts` namespace |
+| `OCI_RUNTIME_NO_NEW_PRIVILEGES`, `OCI_RUNTIME_READONLY_ROOTFS`, `OCI_RUNTIME_TERMINAL` | `1` or `0` |
+
+For example, to trim the namespaces and add a read-only data mount:
+
+    OCI_IMAGE_OUTPUT_MODE = "bundle"
+    OCI_RUNTIME_NAMESPACES:remove = "network"
+    OCI_RUNTIME_MOUNTS += "/data:bind:@INSTANCE_DIR@/data:rbind,ro"
+    OCI_RUNTIME_CAPABILITIES = ""
+
+`@INSTANCE_DIR@` is passed through unchanged, for something on the target to
+fill in before the bundle runs.
 
 ### Verifying Layer Count
 

@@ -287,6 +287,196 @@ OCI_IMAGE_TAR_OUTPUT ?= "true"
 #           Requires the umoci backend.
 OCI_IMAGE_OUTPUT_MODE ?= "image"
 
+# The OCI runtime spec configuration, config.json, of a runtime bundle. These
+# don't affect the image output. process.args, env, cwd and user come from the
+# image settings above (OCI_IMAGE_ENTRYPOINT, OCI_IMAGE_CMD and so on). Everything
+# else that a recipe can set is here, and what is listed is exactly what is
+# emitted: set a variable to replace its default, use += or :remove to adjust it,
+# or set it empty for nothing at all.
+# Values such as @INSTANCE_DIR@ are passed through, for filling in at install
+# or run time.
+#
+# Mounts, as destination:type:source[:option,option]
+OCI_RUNTIME_MOUNTS ?= "\
+    /proc:proc:proc \
+    /dev:tmpfs:tmpfs:nosuid,strictatime,mode=755,size=65536k \
+    /dev/pts:devpts:devpts:nosuid,noexec,newinstance,ptmxmode=0666,mode=0620,gid=5 \
+    /dev/shm:tmpfs:shm:nosuid,noexec,nodev,mode=1777,size=65536k \
+    /dev/mqueue:mqueue:mqueue:nosuid,noexec,nodev \
+    /sys:sysfs:sysfs:nosuid,noexec,nodev,ro \
+    /sys/fs/cgroup:cgroup:cgroup:nosuid,noexec,nodev,relatime,ro \
+"
+# Private namespaces. One that isn't listed is shared with the host, and
+# type=/path joins an existing one.
+OCI_RUNTIME_NAMESPACES ?= "cgroup pid network ipc uts mount"
+# User namespace mappings, as containerID:hostID:size. Setting them gives the
+# container a private user namespace, so 'user' needn't be listed above. Set both,
+# for example "0:100000:65536" maps container root to host uid 100000.
+OCI_RUNTIME_UID_MAPPINGS ?= ""
+OCI_RUNTIME_GID_MAPPINGS ?= ""
+# Each capability set defaults to OCI_RUNTIME_CAPABILITIES
+OCI_RUNTIME_CAPABILITIES ?= "CAP_AUDIT_WRITE CAP_KILL CAP_NET_BIND_SERVICE"
+OCI_RUNTIME_CAPABILITIES_BOUNDING ?= "${OCI_RUNTIME_CAPABILITIES}"
+OCI_RUNTIME_CAPABILITIES_EFFECTIVE ?= "${OCI_RUNTIME_CAPABILITIES}"
+OCI_RUNTIME_CAPABILITIES_INHERITABLE ?= "${OCI_RUNTIME_CAPABILITIES}"
+OCI_RUNTIME_CAPABILITIES_PERMITTED ?= "${OCI_RUNTIME_CAPABILITIES}"
+OCI_RUNTIME_CAPABILITIES_AMBIENT ?= "${OCI_RUNTIME_CAPABILITIES}"
+# Devices to create in the container, and allow access to, as
+# path:type:major:minor[:mode[:uid:gid]], with an octal mode. The runtime already
+# supplies /dev/null, zero, full, random, urandom, tty, console and ptmx.
+OCI_RUNTIME_DEVICES ?= ""
+# type:soft:hard
+OCI_RUNTIME_RLIMITS ?= "RLIMIT_NOFILE:1024:1024"
+OCI_RUNTIME_MASKED_PATHS ?= "\
+    /proc/kcore /proc/latency_stats /proc/timer_list /proc/timer_stats \
+    /proc/sched_debug /sys/firmware /proc/scsi \
+"
+OCI_RUNTIME_READONLY_PATHS ?= "\
+    /proc/asound /proc/bus /proc/fs /proc/irq /proc/sys /proc/sysrq-trigger \
+"
+# Only emitted with a private uts namespace, which it requires
+OCI_RUNTIME_HOSTNAME ?= "${IMAGE_BASENAME}"
+OCI_RUNTIME_NO_NEW_PRIVILEGES ?= "1"
+OCI_RUNTIME_READONLY_ROOTFS ?= "0"
+# A service has no terminal to give the container
+OCI_RUNTIME_TERMINAL ?= "0"
+
+# The runtime spec configuration from OCI_RUNTIME_*, for the backend
+def oci_runtime_config(d):
+    def fields(var, entry, minimum, maximum):
+        parts = entry.split(':')
+        if not minimum <= len(parts) <= maximum:
+            bb.fatal("%s: bad entry '%s', see its format in image-oci.bbclass" % (var, entry))
+        return parts
+
+    def number(var, value):
+        try:
+            return int(value)
+        except ValueError:
+            bb.fatal("%s: '%s' is not a number" % (var, value))
+
+    # User namespace mappings: each entry is containerID:hostID:size, mapping
+    # size ids from containerID in the container to hostID on the host.
+    def mappings(var, value):
+        result = []
+        for entry in value.split():
+            container_id, host_id, size = fields(var, entry, 3, 3)
+            result.append({'containerID': number(var, container_id),
+                           'hostID': number(var, host_id),
+                           'size': number(var, size)})
+        return result
+
+    # Mounts: each entry is destination:type:source[:option,option], for
+    # example /dev/shm:tmpfs:shm:nosuid,noexec,nodev,mode=1777
+    mounts = []
+    for entry in d.getVar('OCI_RUNTIME_MOUNTS').split():
+        parts = fields('OCI_RUNTIME_MOUNTS', entry, 3, 4)
+        mount = {'destination': parts[0], 'type': parts[1], 'source': parts[2]}
+        if len(parts) == 4:
+            mount['options'] = parts[3].split(',')
+        mounts.append(mount)
+
+    # Namespaces: each entry is a type (pid, network, user, ...) for a private
+    # namespace, or type=/path to join an existing one, for example
+    # network=/var/run/netns/blue
+    namespaces = []
+    for entry in d.getVar('OCI_RUNTIME_NAMESPACES').split():
+        ns_type, _, path = entry.partition('=')
+        namespace = {'type': ns_type}
+        if path:
+            namespace['path'] = path
+        namespaces.append(namespace)
+    joined = [n['type'] for n in namespaces if 'path' in n]
+
+    # A private user namespace is the mappings plus the namespace, so the
+    # mappings are what turn it on. A joined one already has its mappings.
+    uid_mappings = mappings('OCI_RUNTIME_UID_MAPPINGS', d.getVar('OCI_RUNTIME_UID_MAPPINGS'))
+    gid_mappings = mappings('OCI_RUNTIME_GID_MAPPINGS', d.getVar('OCI_RUNTIME_GID_MAPPINGS'))
+    if bool(uid_mappings) != bool(gid_mappings):
+        bb.fatal("A user namespace needs both OCI_RUNTIME_UID_MAPPINGS and OCI_RUNTIME_GID_MAPPINGS, "
+                 "for example \"0:100000:65536\" in each")
+    if uid_mappings and 'user' in joined:
+        bb.fatal("OCI_RUNTIME_NAMESPACES joins an existing user namespace, which has its own mappings. "
+                 "Drop OCI_RUNTIME_UID_MAPPINGS and OCI_RUNTIME_GID_MAPPINGS, or the user=/path entry")
+    if uid_mappings and not any(n['type'] == 'user' for n in namespaces):
+        namespaces.append({'type': 'user'})
+    private = [n['type'] for n in namespaces if 'path' not in n]
+    if 'user' in private and not uid_mappings:
+        bb.fatal("'user' in OCI_RUNTIME_NAMESPACES needs OCI_RUNTIME_UID_MAPPINGS and OCI_RUNTIME_GID_MAPPINGS, "
+                 "for example \"0:100000:65536\" in each, which also turn the user namespace on by themselves")
+
+    # Resource limits: each entry is type:soft:hard, for example
+    # RLIMIT_NOFILE:1024:1024
+    rlimits = []
+    for entry in d.getVar('OCI_RUNTIME_RLIMITS').split():
+        limit, soft, hard = fields('OCI_RUNTIME_RLIMITS', entry, 3, 3)
+        rlimits.append({'type': limit,
+                        'soft': number('OCI_RUNTIME_RLIMITS', soft),
+                        'hard': number('OCI_RUNTIME_RLIMITS', hard)})
+
+    # Devices: each entry is path:type:major:minor[:mode[:uid:gid]], for example
+    # /dev/fuse:c:10:229:0666:0:0. type is b (block), c (char) or u (unbuffered
+    # char), mode is octal, and uid and gid come together. Each device is created
+    # in the container and added to the allow rules after the deny-all one.
+    devices = []
+    rules = [{'allow': False, 'access': 'rwm'}]
+    for entry in d.getVar('OCI_RUNTIME_DEVICES').split():
+        parts = fields('OCI_RUNTIME_DEVICES', entry, 4, 7)
+        if parts[1] not in ('b', 'c', 'u') or len(parts) == 6:
+            bb.fatal("OCI_RUNTIME_DEVICES: bad entry '%s', see its format in image-oci.bbclass" % entry)
+        major = number('OCI_RUNTIME_DEVICES', parts[2])
+        minor = number('OCI_RUNTIME_DEVICES', parts[3])
+        device = {'path': parts[0], 'type': parts[1], 'major': major, 'minor': minor}
+        if len(parts) >= 5:
+            try:
+                device['fileMode'] = int(parts[4], 8)
+            except ValueError:
+                bb.fatal("OCI_RUNTIME_DEVICES: '%s' is not an octal mode" % parts[4])
+        if len(parts) == 7:
+            device['uid'] = number('OCI_RUNTIME_DEVICES', parts[5])
+            device['gid'] = number('OCI_RUNTIME_DEVICES', parts[6])
+        devices.append(device)
+        rules.append({'allow': True, 'type': 'c' if parts[1] == 'u' else parts[1],
+                      'major': major, 'minor': minor, 'access': 'rwm'})
+
+    linux = {
+        'namespaces': namespaces,
+        'maskedPaths': d.getVar('OCI_RUNTIME_MASKED_PATHS').split(),
+        'readonlyPaths': d.getVar('OCI_RUNTIME_READONLY_PATHS').split(),
+    }
+    if devices:
+        linux['devices'] = devices
+    if uid_mappings:
+        linux['uidMappings'] = uid_mappings
+        linux['gidMappings'] = gid_mappings
+    # Deny devices by default, as umoci and runc spec do. An unprivileged runtime
+    # in a user namespace can't manage device rules.
+    if 'user' not in private:
+        linux['resources'] = {'devices': rules}
+
+    config = {
+        'process': {
+            'terminal': bb.utils.to_boolean(d.getVar('OCI_RUNTIME_TERMINAL')),
+            'noNewPrivileges': bb.utils.to_boolean(d.getVar('OCI_RUNTIME_NO_NEW_PRIVILEGES')),
+            'rlimits': rlimits,
+            'capabilities': {
+                'bounding': d.getVar('OCI_RUNTIME_CAPABILITIES_BOUNDING').split(),
+                'effective': d.getVar('OCI_RUNTIME_CAPABILITIES_EFFECTIVE').split(),
+                'inheritable': d.getVar('OCI_RUNTIME_CAPABILITIES_INHERITABLE').split(),
+                'permitted': d.getVar('OCI_RUNTIME_CAPABILITIES_PERMITTED').split(),
+                'ambient': d.getVar('OCI_RUNTIME_CAPABILITIES_AMBIENT').split(),
+            },
+        },
+        'readonlyRootfs': bb.utils.to_boolean(d.getVar('OCI_RUNTIME_READONLY_ROOTFS')),
+        'mounts': mounts,
+        'linux': linux,
+    }
+    hostname = d.getVar('OCI_RUNTIME_HOSTNAME')
+    if hostname and 'uts' in private:
+        config['hostname'] = hostname
+
+    return config
+
 # Generate a subarch that is appropriate to OCI image
 # types. This is typically only ARM architectures at the
 # moment.
@@ -352,6 +542,7 @@ python __anonymous() {
                  "which cannot unpack an image into a runtime bundle. "
                  "Set OCI_IMAGE_BACKEND = 'umoci' or OCI_IMAGE_OUTPUT_MODE = 'image'" % backend)
     if 'bundle' in output_modes:
+        oci_runtime_config(d)
         # Here rather than with '+=', so it comes after the functions that are
         # added that way, which may add layers to the image
         d.appendVarFlag('do_image_oci', 'postfuncs', ' oci_deploy_bundle')

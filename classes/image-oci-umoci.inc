@@ -471,6 +471,26 @@ oci_restore_setuid_before_repack() {
     rm -f "$plist"
 }
 
+# Replace what umoci generated for an unprivileged user on the build host with
+# the runtime configuration the recipe describes.
+def oci_configure_bundle(path, runtime):
+    import json
+
+    with open(path) as f:
+        config = json.load(f)
+
+    config['process'].update(runtime['process'])
+    config['root']['readonly'] = runtime['readonlyRootfs']
+    config['mounts'] = runtime['mounts']
+    config['linux'] = runtime['linux']
+    config.pop('hostname', None)
+    if 'hostname' in runtime:
+        config['hostname'] = runtime['hostname']
+
+    with open(path, 'w') as f:
+        json.dump(config, f, indent=2)
+    os.chmod(path, 0o644)
+
 # Deploy the runtime bundle, unpacked from the final image. umoci writes a
 # config.json only when it unpacks an image, and the umoci config calls in
 # IMAGE_CMD:oci change the image config, not the working bundle, which was
@@ -491,6 +511,7 @@ python oci_deploy_bundle() {
     bb.utils.remove(bundle, recurse=True)
     bb.process.run(['umoci', 'unpack', '--rootless', '--image', '%s:%s' % (image, tag), bundle],
                    cwd=deploy)
+    oci_configure_bundle(os.path.join(bundle, 'config.json'), oci_runtime_config(d))
     bb.process.run(['python3', archive, bundle, bundle + '.tar'],
                    env=dict(os.environ, PSEUDO_DISABLED='1'))
     bb.utils.remove(bundle, recurse=True)

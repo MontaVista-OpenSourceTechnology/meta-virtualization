@@ -1108,3 +1108,5 @@ class TestCustomServiceFileBoot:
                 f"Missing [Container] section in podman quadlet file.\nContent:\n{content}"
             assert 'Image=' in content, \
                 f"Missing Image= directive in podman quadlet file"
+            assert 'Restart=always' in content, \
+                f"Quadlet file doesn't use a restart policy systemd accepts.\nContent:\n{content}"

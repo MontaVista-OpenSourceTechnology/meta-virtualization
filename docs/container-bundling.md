@@ -543,7 +543,7 @@ Use the `CONTAINER_SERVICE_FILE` varflag to specify custom service files:
     Environment=POSTGRES_PASSWORD=secret
 
     [Service]
-    Restart=unless-stopped
+    Restart=always
     RestartSec=5s
 
     [Install]

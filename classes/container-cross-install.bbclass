@@ -598,6 +598,12 @@ generate_podman_service_from_bundle() {
     local image_tag="$3"
     local restart_policy="$4"
 
+    # systemd has no unless-stopped, and its always already leaves a
+    # manually stopped service alone
+    if [ "$restart_policy" = "unless-stopped" ]; then
+        restart_policy="always"
+    fi
+
     local quadlet_dir="${IMAGE_ROOTFS}/etc/containers/systemd"
     local container_file="${quadlet_dir}/${service_name}.container"
 
@@ -744,6 +750,12 @@ EOF
         local image_name="$2"
         local image_tag="$3"
         local restart_policy="$4"
+
+        # systemd has no unless-stopped, and its always already leaves a
+        # manually stopped service alone
+        if [ "$restart_policy" = "unless-stopped" ]; then
+            restart_policy="always"
+        fi
 
         # Use Quadlet format for modern Podman
         local quadlet_dir="${IMAGE_ROOTFS}/etc/containers/systemd"

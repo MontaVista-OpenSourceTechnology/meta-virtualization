@@ -19,7 +19,8 @@
 #
 # Container format: name:runtime[:autostart][:external]
 #   - name: Container recipe name OR OCI directory name in DEPLOY_DIR_IMAGE
-#   - runtime: docker or podman
+#   - runtime: docker or podman, or crun or runc for a recipe that sets
+#     OCI_IMAGE_OUTPUT_MODE = "bundle"
 #   - autostart: Optional. Creates systemd service to start on boot:
 #       * autostart     - alias for unless-stopped (recommended)
 #       * always        - always restart container
@@ -40,6 +41,7 @@
 #   BUNDLED_CONTAINERS = "container-base:docker"           # auto-dep, no autostart
 #   BUNDLED_CONTAINERS = "myapp:podman:autostart"          # auto-dep, autostart
 #   BUNDLED_CONTAINERS = "vendor-blob:docker:external"     # no dep, third-party
+#   BUNDLED_CONTAINERS = "myapp:crun:autostart"            # runtime bundle
 #   BUNDLED_CONTAINERS = "vendor-blob:docker:autostart:external"  # no dep, autostart
 #   # Legacy format still supported:
 #   BUNDLED_CONTAINERS = "container-base-latest-oci:docker"  # auto-dep (derived)
@@ -47,6 +49,13 @@
 # Generated autostart files:
 #   Docker: /etc/systemd/system/container-<name>.service (enabled)
 #   Podman: /etc/containers/systemd/<name>.container (Quadlet format)
+#   crun/runc: /lib/systemd/system/container-<name>.service (enabled)
+#
+# Runtime bundles:
+#   docker and podman import an OCI image into their storage. crun and runc
+#   run a runtime bundle instead, so its tarball is extracted to
+#   ${OCI_BUNDLE_INSTALL_DIR}/<name>. No QEMU is involved, and the runtime
+#   must be added to the image separately.
 #
 # The class uses vdkr/vpdmn initramfs blobs built via multiconfig (mcdepends).
 # These contain Docker or Podman tools respectively and are built by
@@ -134,6 +143,24 @@ def get_default_container_runtime(d):
     return 'docker'
 
 CONTAINER_DEFAULT_RUNTIME ?= "${@get_default_container_runtime(d)}"
+
+# Where crun and runc entries in BUNDLED_CONTAINERS are installed
+OCI_BUNDLE_INSTALL_DIR ?= "${localstatedir}/lib/oci-bundles"
+
+# The template for the systemd service that runs a runtime bundle. A bbappend
+# of the image can put its own oci-bundle.service.in in FILESPATH, a layer can
+# put one in files/ of a layer earlier in BBPATH, or set this to a file.
+def oci_bundle_service_template(d):
+    name = 'oci-bundle.service.in'
+    return (bb.utils.which(d.getVar('FILESPATH'), name) or
+            bb.utils.which(d.getVar('BBPATH'), os.path.join('files', name)))
+
+OCI_BUNDLE_SERVICE_TEMPLATE ?= "${@oci_bundle_service_template(d)}"
+OCI_BUNDLE_CGROUPS_PATH_SCRIPT = "${@bb.utils.which(d.getVar('BBPATH'), 'scripts/oci-bundle-cgroups-path.py')}"
+
+# Paths on the build host, so the files they name are checksummed instead
+bundle_containers[vardepsexclude] += "OCI_BUNDLE_SERVICE_TEMPLATE OCI_BUNDLE_CGROUPS_PATH_SCRIPT"
+do_rootfs[file-checksums] += "${OCI_BUNDLE_SERVICE_TEMPLATE}:True ${OCI_BUNDLE_CGROUPS_PATH_SCRIPT}:True"
 
 # Dependencies on native tools
 # vcontainer-native provides vrunner.sh
@@ -688,6 +715,45 @@ bundle_containers() {
         fi
     }
 
+    # Resolve a runtime bundle tarball from a container name
+    # Output: full path to the tarball, or empty string if not found
+    resolve_bundle_tar() {
+        local name="$1"
+        if [ -e "${DEPLOY_DIR_IMAGE}/${name}-latest-oci-bundle.tar" ]; then
+            echo "${DEPLOY_DIR_IMAGE}/${name}-latest-oci-bundle.tar"
+        elif [ -e "${DEPLOY_DIR_IMAGE}/${name}-oci-bundle.tar" ]; then
+            echo "${DEPLOY_DIR_IMAGE}/${name}-oci-bundle.tar"
+        else
+            echo ""
+        fi
+    }
+
+    # Extract a runtime bundle tarball into the rootfs
+    # Args: container_name runtime_type
+    install_oci_bundle() {
+        local name="$1"
+        local runtime="$2"
+        local bundle_tar=$(resolve_bundle_tar "$name")
+
+        if [ -z "$bundle_tar" ]; then
+            if [ -n "$(resolve_oci_dir "$name")" ]; then
+                bbfatal "'$name' is an OCI image, but $runtime runs a runtime bundle. Set OCI_IMAGE_OUTPUT_MODE = \"bundle\" in that recipe, or use '$name:docker' or '$name:podman'"
+            fi
+            bbfatal "Runtime bundle not found for '$name' in ${DEPLOY_DIR_IMAGE}. Build it with OCI_IMAGE_OUTPUT_MODE = \"bundle\", or remove it from BUNDLED_CONTAINERS"
+        fi
+
+        if [ ! -e "${IMAGE_ROOTFS}${bindir}/$runtime" ]; then
+            bbwarn "$name uses $runtime, but ${bindir}/$runtime is not in the image. Add $runtime to IMAGE_INSTALL"
+        fi
+
+        local bundle_dir="${IMAGE_ROOTFS}${OCI_BUNDLE_INSTALL_DIR}/$name"
+        bbnote "Installing runtime bundle: $bundle_tar -> ${OCI_BUNDLE_INSTALL_DIR}/$name"
+        mkdir -p "$bundle_dir"
+        if ! tar -xf "$bundle_tar" -C "$bundle_dir" --numeric-owner --same-owner --same-permissions; then
+            bbfatal "Failed to extract runtime bundle $bundle_tar"
+        fi
+    }
+
     # Convert container name to valid systemd service name
     # Input: my-app/special:latest
     # Output: my-app-special-latest
@@ -785,6 +851,53 @@ EOF
         bbnote "Created Quadlet file ${service_name}.container for Podman container ${image_name}:${image_tag}"
     }
 
+    # Generate a systemd service that runs a runtime bundle
+    # Args: service_name container_name runtime restart_policy
+    generate_bundle_service() {
+        local service_name="$1"
+        local container_name="$2"
+        local runtime="$3"
+        local restart_policy="$4"
+
+        # systemd has no unless-stopped, and its always already leaves a
+        # manually stopped service alone
+        if [ "$restart_policy" = "unless-stopped" ]; then
+            restart_policy="always"
+        fi
+
+        local service_dir="${IMAGE_ROOTFS}/lib/systemd/system"
+        local service_file="${service_dir}/${service_name}.service"
+
+        if [ ! -f "${OCI_BUNDLE_SERVICE_TEMPLATE}" ]; then
+            bbfatal "No service template for runtime bundles: OCI_BUNDLE_SERVICE_TEMPLATE = '${OCI_BUNDLE_SERVICE_TEMPLATE}'"
+        fi
+        mkdir -p "$service_dir"
+        sed -e "s|@CONTAINER_NAME@|${container_name}|g" \
+            -e "s|@RUNTIME@|${bindir}/${runtime}|g" \
+            -e "s|@RESTART_POLICY@|${restart_policy}|g" \
+            -e "s|@BUNDLE_DIR@|${OCI_BUNDLE_INSTALL_DIR}/${container_name}|g" \
+            "${OCI_BUNDLE_SERVICE_TEMPLATE}" > "$service_file"
+
+        local wants_dir="${IMAGE_ROOTFS}/etc/systemd/system/multi-user.target.wants"
+        mkdir -p "$wants_dir"
+        ln -sf "/lib/systemd/system/${service_name}.service" "${wants_dir}/${service_name}.service"
+
+        # Without a cgroupsPath, the runtime makes a cgroup at the top of the
+        # hierarchy, so the container's processes and output are not the
+        # service's, and journalctl -u doesn't show what it prints. Use one
+        # below the service's, which Delegate=yes hands to the runtime.
+        local config="${IMAGE_ROOTFS}${OCI_BUNDLE_INSTALL_DIR}/${container_name}/config.json"
+        local cgroup="/system.slice/${service_name}.service/container"
+        local current
+        current=$(python3 "${OCI_BUNDLE_CGROUPS_PATH_SCRIPT}" "$config" "$cgroup") ||
+            bbfatal "Failed to set the cgroupsPath of the runtime bundle ${container_name}"
+        if [ -n "$current" ]; then
+            bbwarn "The runtime bundle ${container_name} sets its own cgroupsPath, $current, so ${service_name}.service won't have its processes and output unless that is below /system.slice/${service_name}.service"
+        fi
+
+        bbnote "Created and enabled ${service_name}.service for runtime bundle ${container_name}"
+    }
+
     # Install a custom service file provided by the user
     # Args: container_name service_name runtime_type custom_file
     install_custom_service() {
@@ -797,8 +910,8 @@ EOF
             bbfatal "Custom service file not found: $custom_file (for container $container_name)"
         fi
 
-        if [ "$runtime_type" = "docker" ]; then
-            # Docker: Install as systemd service
+        if [ "$runtime_type" = "docker" ] || is_bundle_runtime "$runtime_type"; then
+            # Install as systemd service
             local service_dir="${IMAGE_ROOTFS}/lib/systemd/system"
             local service_file="${service_dir}/${service_name}.service"
 
@@ -893,6 +1006,8 @@ EOF
                 generate_docker_service "$service_name" "${CONTAINER_IMAGE_NAME}" "${CONTAINER_IMAGE_TAG}" "$restart_policy"
             elif [ "$runtime_type" = "podman" ]; then
                 generate_podman_service "$service_name" "${CONTAINER_IMAGE_NAME}" "${CONTAINER_IMAGE_TAG}" "$restart_policy"
+            elif is_bundle_runtime "$runtime_type"; then
+                generate_bundle_service "$service_name" "$container_name" "$runtime_type" "$restart_policy"
             else
                 bbwarn "Unknown runtime '$runtime_type' for autostart, skipping service generation"
             fi
@@ -945,9 +1060,18 @@ EOF
 
         bbnote "Collecting container: $container_name (runtime: $runtime_type)"
 
+        # crun and runc run a runtime bundle, there is no storage to import into
+        if is_bundle_runtime "$runtime_type"; then
+            install_oci_bundle "$container_name" "$runtime_type"
+            continue
+        fi
+
         # Resolve OCI directory (supports both recipe names and OCI dir names)
         oci_dir=$(resolve_oci_dir "$container_name")
         if [ -z "$oci_dir" ] || [ ! -e "$oci_dir" ]; then
+            if [ -n "$(resolve_bundle_tar "$container_name")" ]; then
+                bbfatal "'$container_name' is a runtime bundle, but $runtime_type imports an OCI image. Use '$container_name:crun' or '$container_name:runc', or remove OCI_IMAGE_OUTPUT_MODE = \"bundle\" from that recipe"
+            fi
             bbfatal "============================================================
 MISSING CONTAINER: $container_name
 ============================================================

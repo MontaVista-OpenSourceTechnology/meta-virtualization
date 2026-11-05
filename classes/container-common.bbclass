@@ -49,3 +49,18 @@ def get_blob_arch(d):
         'i586': 'x86_64',
     }
     return blob_map.get(arch, 'aarch64')
+
+# The runtimes that run OCI runtime bundles rather than importing an OCI image
+OCI_BUNDLE_RUNTIMES ?= "crun runc"
+OCI_BUNDLE_RUNTIMES_PATTERN = "${@'|'.join(d.getVar('OCI_BUNDLE_RUNTIMES').split())}"
+
+# Whether a runtime is one of OCI_BUNDLE_RUNTIMES
+# Args: runtime
+is_bundle_runtime() {
+    case "$1" in
+        ${OCI_BUNDLE_RUNTIMES_PATTERN})
+            return 0
+            ;;
+    esac
+    return 1
+}

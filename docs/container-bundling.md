@@ -344,7 +344,8 @@ Set in local.conf or image recipe:
     name:runtime[:autostart][:external]
 
 - **name**: Container image recipe name or OCI directory name
-- **runtime**: `docker` or `podman`
+- **runtime**: `docker` or `podman` for an OCI image, `crun` or `runc` for a
+  runtime bundle
 - **autostart**: Optional - `autostart`, `always`, `unless-stopped`, `on-failure`
 - **external**: Optional - skip dependency generation for third-party blobs
 
@@ -359,6 +360,36 @@ Set in local.conf or image recipe:
 
     # Legacy format (still supported)
     BUNDLED_CONTAINERS = "container-base-latest-oci:docker"
+
+    # Runtime bundle, from a recipe with OCI_IMAGE_OUTPUT_MODE = "bundle"
+    BUNDLED_CONTAINERS = "myapp-container:crun:autostart"
+
+### Runtime Bundles
+
+`docker` and `podman` import an OCI image into their storage. `crun` and `runc`
+run a runtime bundle, so the tarball from a recipe with
+`OCI_IMAGE_OUTPUT_MODE = "bundle"` is extracted to
+`${OCI_BUNDLE_INSTALL_DIR}/<name>`, by default `/var/lib/oci-bundles/<name>`.
+The runtime must match what the recipe builds, and it isn't installed for you:
+
+    IMAGE_INSTALL:append = " crun"
+    BUNDLED_CONTAINERS = "myapp-container:crun:autostart"
+
+Autostart generates `container-<name>.service`, which runs
+`crun run --bundle /var/lib/oci-bundles/<name> <name>`.
+The service has `Delegate=yes`, and the bundle's `config.json` gets a
+`cgroupsPath` below the service's cgroup, so the container's processes belong to
+the service and `journalctl -u container-<name>` shows its output. A bundle that
+sets its own `cgroupsPath` keeps it, with a warning.
+`CONTAINER_SERVICE_FILE` replaces it the same way as for `docker`.
+
+The service comes from the template `files/oci-bundle.service.in`, with
+`@CONTAINER_NAME@`, `@RUNTIME@`, `@RESTART_POLICY@` and `@BUNDLE_DIR@` filled in.
+To use your own, add `oci-bundle.service.in` to the image's `FILESPATH` with a
+bbappend, or set `OCI_BUNDLE_SERVICE_TEMPLATE` to its path.
+
+The runtimes that run bundles are listed in `OCI_BUNDLE_RUNTIMES`, by default
+`crun runc`.
 
 
 Using container-bundle.bbclass

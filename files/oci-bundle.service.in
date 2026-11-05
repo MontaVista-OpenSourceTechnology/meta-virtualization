@@ -1,0 +1,14 @@
+[Unit]
+Description=OCI Runtime Bundle @CONTAINER_NAME@
+
+[Service]
+Type=simple
+Restart=@RESTART_POLICY@
+RestartSec=5s
+TimeoutStartSec=0
+Delegate=yes
+ExecStartPre=-@RUNTIME@ delete --force @CONTAINER_NAME@
+ExecStart=@RUNTIME@ run --bundle @BUNDLE_DIR@ @CONTAINER_NAME@
+
+[Install]
+WantedBy=multi-user.target

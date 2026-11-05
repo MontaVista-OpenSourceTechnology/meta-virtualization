@@ -305,14 +305,15 @@ Use CMD for base images (flexible). Use ENTRYPOINT for wrapper tools.
 
 ### OCI Runtime Bundle Output
 
-To deploy an OCI runtime bundle instead of an OCI image, select the bundle
-output mode. It requires the umoci backend.
+To deploy an OCI runtime bundle, add it to the output modes. It requires the
+umoci backend.
 
-    OCI_IMAGE_OUTPUT_MODE = "bundle"
+    OCI_IMAGE_OUTPUT_MODE = "bundle"        # bundle only
+    OCI_IMAGE_OUTPUT_MODE = "image bundle"  # both, from one image
 
 The image type then deploys `${IMAGE_BASENAME}-latest-oci-bundle.tar`, holding
-`config.json` and `rootfs/`, and no OCI image directory or image tarballs. The
-bundle is unpacked from the final image, so `process.args` is the entrypoint
+`config.json` and `rootfs/`. Without `image` in the list, there is no OCI image
+directory or image tarballs. The bundle is unpacked from the final image, so `process.args` is the entrypoint
 followed by the cmd. Device nodes do not survive in `rootfs/`, so anything beyond
 the runtime's default devices must be listed in `linux.devices`.
 

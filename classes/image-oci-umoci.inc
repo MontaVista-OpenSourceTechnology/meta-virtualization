@@ -500,10 +500,11 @@ python oci_deploy_bundle() {
         os.remove(link)
     os.symlink(os.path.basename(bundle) + '.tar', link)
 
-    # The image was only made for the bundle, and functions before this one may
-    # have made tarballs of it
-    for name in (image, image + '.tar', image + '-dir.tar'):
-        bb.utils.remove(os.path.join(deploy, name), recurse=True)
+    if 'image' not in d.getVar('OCI_IMAGE_OUTPUT_MODE').split():
+        # The image was only made for the bundle, and functions before this one
+        # may have made tarballs of it
+        for name in (image, image + '.tar', image + '-dir.tar'):
+            bb.utils.remove(os.path.join(deploy, name), recurse=True)
 }
 
 IMAGE_CMD:oci() {
@@ -885,7 +886,7 @@ IMAGE_CMD:oci() {
     # names so replace them
     image_tag="${@d.getVar("OCI_IMAGE_TAG").replace(":", "_")}"
 
-    if [ "${OCI_IMAGE_OUTPUT_MODE}" = "bundle" ]; then
+    if ! ${@bb.utils.contains('OCI_IMAGE_OUTPUT_MODE', 'image', 'true', 'false', d)}; then
         # oci_deploy_bundle deploys the bundle and removes the image
         rm -rf "$image_bundle_name"
         return

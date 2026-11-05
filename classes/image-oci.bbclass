@@ -280,9 +280,9 @@ OCI_LAYER_CACHE_DIR ?= "${TOPDIR}/oci-layer-cache/${MACHINE}"
 # bundled into a tarball.
 OCI_IMAGE_TAR_OUTPUT ?= "true"
 
-# What the oci image type deploys, one or the other:
+# What the oci image type deploys, one or both of:
 #   image:  the OCI image directory and its tarballs
-#   bundle: only an OCI runtime bundle tarball (config.json and rootfs/), unpacked
+#   bundle: an OCI runtime bundle tarball (config.json and rootfs/), unpacked
 #           from the final image, for use with runtimes such as crun and runc.
 #           Requires the umoci backend.
 OCI_IMAGE_OUTPUT_MODE ?= "image"
@@ -343,14 +343,15 @@ python __anonymous() {
             bb.fatal("Multi-layer OCI requires umoci backend. "
                      "Set OCI_IMAGE_BACKEND = 'umoci' or remove OCI_BASE_IMAGE")
 
-    output_mode = d.getVar('OCI_IMAGE_OUTPUT_MODE')
-    if output_mode not in ('image', 'bundle'):
-        bb.fatal("OCI_IMAGE_OUTPUT_MODE must be 'image' or 'bundle', not '%s'" % output_mode)
-    if output_mode == 'bundle' and backend != 'umoci':
-        bb.fatal("OCI_IMAGE_OUTPUT_MODE = 'bundle' is not supported by the '%s' backend, "
+    output_modes = (d.getVar('OCI_IMAGE_OUTPUT_MODE') or '').split()
+    if not output_modes or not set(output_modes) <= {'image', 'bundle'}:
+        bb.fatal("OCI_IMAGE_OUTPUT_MODE must be 'image', 'bundle' or both, not '%s'"
+                 % ' '.join(output_modes))
+    if 'bundle' in output_modes and backend != 'umoci':
+        bb.fatal("OCI_IMAGE_OUTPUT_MODE 'bundle' is not supported by the '%s' backend, "
                  "which cannot unpack an image into a runtime bundle. "
                  "Set OCI_IMAGE_BACKEND = 'umoci' or OCI_IMAGE_OUTPUT_MODE = 'image'" % backend)
-    if output_mode == 'bundle':
+    if 'bundle' in output_modes:
         # Here rather than with '+=', so it comes after the functions that are
         # added that way, which may add layers to the image
         d.appendVarFlag('do_image_oci', 'postfuncs', ' oci_deploy_bundle')

@@ -8,7 +8,8 @@ IMAGE_CMD:oci() {
     bbdebug 1 "  arch: ${OCI_IMAGE_ARCH}"
     bbdebug 1 "  subarch: ${OCI_IMAGE_SUBARCH}"
     bbdebug 1 "  entrypoint: ${OCI_IMAGE_ENTRYPOINT}"
-    bbdebug 1 "  entrypoing args: ${OCI_IMAGE_ENTRYPOINT_ARGS}"
+    bbdebug 1 "  entrypoint args: ${OCI_IMAGE_ENTRYPOINT_ARGS}"
+    bbdebug 1 "  cmd: ${OCI_IMAGE_CMD}"
     bbdebug 1 "  labels: ${OCI_IMAGE_LABELS}"
     bbdebug 1 "  uid: ${OCI_IMAGE_RUNTIME_UID}"
     bbdebug 1 "  working dir: ${OCI_IMAGE_WORKINGDIR}"
@@ -55,8 +56,8 @@ IMAGE_CMD:oci() {
     sloci-image $sloci_options \
 		--arch ${OCI_IMAGE_ARCH} \
 		--arch-variant "${OCI_IMAGE_SUBARCH}" \
-		--entrypoint ${OCI_IMAGE_ENTRYPOINT} \
-		--cmd "${OCI_IMAGE_ENTRYPOINT_ARGS}" \
+		${@" ".join("--entrypoint '%s'" % s for s in __import__('shlex').split(d.getVar("OCI_IMAGE_ENTRYPOINT")))} \
+		${@" ".join("--cmd '%s'" % s for s in __import__('shlex').split(d.getVar("OCI_IMAGE_ENTRYPOINT_ARGS") or d.getVar("OCI_IMAGE_CMD")))} \
 		--author ${OCI_IMAGE_AUTHOR_EMAIL} \
 		${oci_image_user_options} \
 		${oci_image_label_options} \

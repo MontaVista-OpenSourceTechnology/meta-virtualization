@@ -1098,6 +1098,8 @@ class TestCustomServiceFileBoot:
                 f"Missing [Service] section in docker service file"
             assert 'docker' in content.lower(), \
                 f"Service doesn't reference docker"
+            assert 'Restart=always' in content, \
+                f"Service doesn't use a restart policy systemd accepts.\nContent:\n{content}"
 
         elif profile == 'podman':
             content = profiled_session.run_command(

@@ -516,7 +516,7 @@ Use the `CONTAINER_SERVICE_FILE` varflag to specify custom service files:
 
     [Service]
     Type=simple
-    Restart=unless-stopped
+    Restart=always
     RestartSec=5s
     ExecStartPre=-/usr/bin/docker rm -f myapp
     ExecStart=/usr/bin/docker run --rm --name myapp \

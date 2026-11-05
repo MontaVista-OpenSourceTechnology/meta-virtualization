@@ -554,6 +554,12 @@ generate_docker_service_from_bundle() {
     local image_tag="$3"
     local restart_policy="$4"
 
+    # systemd has no unless-stopped, and its always already leaves a
+    # manually stopped service alone
+    if [ "$restart_policy" = "unless-stopped" ]; then
+        restart_policy="always"
+    fi
+
     local service_dir="${IMAGE_ROOTFS}/lib/systemd/system"
     local service_file="${service_dir}/${service_name}.service"
 
@@ -691,6 +697,12 @@ bundle_containers() {
         local image_name="$2"
         local image_tag="$3"
         local restart_policy="$4"
+
+        # systemd has no unless-stopped, and its always already leaves a
+        # manually stopped service alone
+        if [ "$restart_policy" = "unless-stopped" ]; then
+            restart_policy="always"
+        fi
 
         # Use standard paths - systemd_system_unitdir is /lib/systemd/system
         local service_dir="${IMAGE_ROOTFS}/lib/systemd/system"

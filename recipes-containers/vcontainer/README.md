@@ -464,6 +464,8 @@ Key differences from vdkr:
 |------|---------|
 | `vdkr.sh` | Docker CLI wrapper |
 | `vpdmn.sh` | Podman CLI wrapper |
+| `vrnc.sh` | runc CLI wrapper, for OCI runtime bundles in the vdkr guest |
+| `vcrn.sh` | crun CLI wrapper, for OCI runtime bundles in the vpdmn guest |
 | `vrunner.sh` | Shared QEMU runner script |
 | `vdkr-init.sh` | Docker init script (baked into initramfs) |
 | `vpdmn-init.sh` | Podman init script (daemonless) |

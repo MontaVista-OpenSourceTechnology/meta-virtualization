@@ -558,6 +558,11 @@ run_daemon_mode() {
             # Check for running containers and write status to shared file
             # Host-side reads this file instead of sending socket commands
             RUNNING=$("$VCONTAINER_RUNTIME_CMD" ps -q 2>/dev/null)
+            # vrnc and vcrn run containers that the engine doesn't know of
+            for bundle_runtime in runc crun; do
+                command -v "$bundle_runtime" >/dev/null 2>&1 || continue
+                RUNNING="$RUNNING$("$bundle_runtime" list 2>/dev/null | awk 'NR > 1 && $3 != "stopped" { print $1 }')"
+            done
             if [ -n "$RUNNING" ]; then
                 echo "$RUNNING" > "$CONTAINER_STATUS_FILE" 2>/dev/null || true
             else

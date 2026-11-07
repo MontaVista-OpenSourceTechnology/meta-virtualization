@@ -350,6 +350,39 @@ For example, to trim the namespaces and add a read-only data mount:
 `@INSTANCE_DIR@` is passed through unchanged, for something on the target to
 fill in before the bundle runs.
 
+To run a bundle on the build host, in a QEMU guest of the target architecture,
+use `vrnc` (with `runc`) or `vcrn` (with `crun`) from the vcontainer SDK. They take
+the same commands and options as those runtimes, and the exit code is the
+container's:
+
+    vrnc run -b tmp/deploy/images/qemux86-64/myapp-latest-oci-bundle.tar myapp
+
+    vrnc run -d -b tmp/deploy/images/qemux86-64/myapp-latest-oci-bundle.tar myapp
+    vrnc list
+    vrnc vlogs myapp
+    vrnc exec myapp /bin/sh -c 'echo hello'
+    vrnc kill myapp KILL
+    vrnc delete myapp
+
+The bundle can be a directory, as with `runc`, but use the tar: it keeps file
+ownership, while everything in a directory is owned by root in the guest.
+
+They use the `vdkr` and `vpdmn` guests, and share those tools' state and memory
+resident daemon, but docker and podman take no part in the run. Containers live in
+the guest, which brings some differences from the real runtimes:
+
+- All but a foreground `run` need the daemon, so `--no-daemon` only allows that.
+- A foreground `run` shows its output when it exits, and the guest does nothing
+  else until then. Use `-d` for a long running container.
+- The output of a detached container goes to a file in the guest, which `vlogs`
+  shows. Commands that `runc` and `crun` don't have start with `v`: `vlogs` and
+  `vmemres`.
+- The exit code of `exec -t`, or of a bundle with `terminal` set, is not returned.
+- Options and commands that name files in the guest are refused: `--pid-file`,
+  `--console-socket`, `--pidfd-socket`, `--process`, `--resources`, `--log`, `spec`,
+  `checkpoint` and `restore`.
+- `events` needs `--stats`, since it would otherwise never end.
+
 ### Verifying Layer Count
 
     # Check layer count with skopeo

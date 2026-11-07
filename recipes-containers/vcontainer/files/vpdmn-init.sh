@@ -35,7 +35,7 @@
 VCONTAINER_RUNTIME_NAME="vpdmn"
 VCONTAINER_RUNTIME_CMD="podman"
 VCONTAINER_RUNTIME_PREFIX="podman"
-VCONTAINER_STATE_DIR="/var/lib/containers/storage"
+export VCONTAINER_STATE_DIR="/var/lib/containers/storage"
 VCONTAINER_SHARE_NAME="vpdmn_share"
 VCONTAINER_VERSION="1.1.0"
 

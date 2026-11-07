@@ -5,13 +5,14 @@
 #
 # vcontainer-common.sh: Shared code for vdkr and vpdmn CLI wrappers
 #
-# This file is sourced by vdkr.sh and vpdmn.sh after they set:
+# This file is sourced by vdkr.sh, vpdmn.sh, vrnc.sh and vcrn.sh after they set:
 #   VCONTAINER_RUNTIME_NAME   - Tool name (vdkr or vpdmn)
 #   VCONTAINER_RUNTIME_CMD    - Container command (docker or podman)
 #   VCONTAINER_RUNTIME_PREFIX - Env var prefix (VDKR or VPDMN)
 #   VCONTAINER_IMPORT_TARGET  - skopeo target (docker-daemon: or containers-storage:)
 #   VCONTAINER_STATE_FILE     - State image name (docker-state.img or podman-state.img)
 #   VCONTAINER_OTHER_PREFIX   - Other tool's prefix for orphan checking (VPDMN or VDKR)
+#   VCONTAINER_BUNDLE_RUNTIME - Set by vrnc and vcrn only: the runtime whose CLI they mirror
 #   VCONTAINER_VERSION        - Tool version
 
 set -e
@@ -747,7 +748,63 @@ _vxn_autoprovision() {
         echo -e "${RED}[$VCONTAINER_RUNTIME_NAME]${NC} auto-provision of '$name' failed" >&2; return 1; }
 }
 
+show_bundle_usage() {
+    local PROG_NAME=$(basename "$0")
+    cat << EOF
+${BOLD}${PROG_NAME}${NC} v$VCONTAINER_VERSION - ${VCONTAINER_BUNDLE_RUNTIME} CLI for OCI runtime bundles in a QEMU guest
+
+${BOLD}USAGE:${NC}
+    ${PROG_NAME} [OPTIONS] <command> [command options] [arguments...]
+
+    Everything after the command goes to ${VCONTAINER_BUNDLE_RUNTIME} in the guest, see
+    '${PROG_NAME} <command> --help'. Exit codes are ${VCONTAINER_BUNDLE_RUNTIME}'s.
+
+${BOLD}COMMANDS:${NC}
+    ${CYAN}run${NC} [-b <bundle>] [-d] [--keep] <id>     Create and run a container
+    ${CYAN}create${NC} [-b <bundle>] <id>                Create a container
+    ${CYAN}start${NC} <id>                               Run the process of a created container
+    ${CYAN}exec${NC} [-t] [-d] <id> <command> [args]     Run a process in a container
+    ${CYAN}list${NC}, ${CYAN}state${NC}, ${CYAN}ps${NC}, ${CYAN}events --stats${NC}          Show containers
+    ${CYAN}kill${NC}, ${CYAN}pause${NC}, ${CYAN}resume${NC}, ${CYAN}update${NC}, ${CYAN}delete${NC}      Change containers
+    ${CYAN}features${NC}                                 Show what ${VCONTAINER_BUNDLE_RUNTIME} supports
+
+${BOLD}EXTENDED COMMANDS (${VCONTAINER_RUNTIME_NAME}-specific):${NC}
+    ${CYAN}vlogs${NC} <id>                               Show a detached container's output
+    ${CYAN}vmemres${NC} <start|stop|restart|status>      Control the memory resident guest
+
+${BOLD}BUNDLES:${NC}
+    <bundle> is a directory or a tar file, defaulting to the current directory.
+    Use the tar from OCI_IMAGE_OUTPUT_MODE = "bundle": it keeps file ownership,
+    while everything in a directory is owned by root in the guest.
+
+${BOLD}THE GUEST:${NC}
+    Containers live in the guest, so all but a foreground run need the daemon.
+    Its output appears when a foreground run exits, and the guest does nothing
+    else until then, so use -d for a long running container, and vlogs to
+    see its output. The exit code of exec -t or of a bundle with terminal set
+    is not returned.
+
+    Paths would be in the guest, so --pid-file, --console-socket, --pidfd-socket,
+    --process, --resources and --log are refused. So are spec, checkpoint and
+    restore.
+
+${BOLD}OPTIONS:${NC}
+    --arch, -a <arch>     Guest architecture [default: host]
+    --no-daemon           Boot a guest for this run, instead of using the daemon
+    --state-dir <path>    Override state directory [default: ~/.$(echo $VCONTAINER_RUNTIME_PREFIX | tr 'A-Z' 'a-z')/<arch>]
+    --verbose, -v         Enable verbose output
+    --help, -h            Show this help
+    --version             Show version
+
+    Other options before the command are ${VCONTAINER_BUNDLE_RUNTIME}'s global options.
+EOF
+}
+
 show_usage() {
+    if [ -n "${VCONTAINER_BUNDLE_RUNTIME:-}" ]; then
+        show_bundle_usage
+        return
+    fi
     local PROG_NAME=$(basename "$0")
     local RUNTIME_UPPER=$(echo "$VCONTAINER_RUNTIME_CMD" | sed 's/./\U&/')
     cat << EOF
@@ -1060,6 +1117,7 @@ REGISTRY_PASS=""
 AUTH_CONFIG="${VDKR_CONFIG:-${VPDMN_CONFIG:-}}"
 COMMAND=""
 COMMAND_ARGS=()
+BUNDLE_GLOBAL_ARGS=()
 
 # Auto-detect bundled CA certificate for secure registry
 # If CA cert is bundled in the tarball, automatically enable secure mode
@@ -1070,6 +1128,16 @@ if [ -f "$BUNDLED_CA_CERT" ]; then
 fi
 
 while [ $# -gt 0 ]; do
+    # vrnc and vcrn follow runc: what comes after the command is the command's
+    if [ -n "${VCONTAINER_BUNDLE_RUNTIME:-}" ]; then
+        case "$COMMAND" in
+            ""|vmemres) ;;
+            *)
+                COMMAND_ARGS+=("$@")
+                break
+                ;;
+        esac
+    fi
     case $1 in
         --arch|-a)
             # Only parse as global option before command is set
@@ -1209,6 +1277,24 @@ while [ $# -gt 0 ]; do
             exit 0
             ;;
         -*)
+            if [ -n "${VCONTAINER_BUNDLE_RUNTIME:-}" ] && [ -z "$COMMAND" ]; then
+                # The runtime's own global options
+                case "$1" in
+                    --log|--log=*)
+                        echo -e "${RED}[$VCONTAINER_RUNTIME_NAME]${NC} $1 names a path in the guest, which is not supported" >&2
+                        exit 1
+                        ;;
+                    --root|--rootless|--log-format|--cgroup-manager)
+                        BUNDLE_GLOBAL_ARGS+=("$1" "${2:-}")
+                        shift $(( $# > 1 ? 2 : 1 ))
+                        ;;
+                    *)
+                        BUNDLE_GLOBAL_ARGS+=("$1")
+                        shift
+                        ;;
+                esac
+                continue
+            fi
             # Unknown option - might be for subcommand
             COMMAND_ARGS+=("$1")
             shift
@@ -1914,6 +2000,255 @@ vxn_not_yet() {
     echo "${VCONTAINER_RUNTIME_NAME}: '$1' is not yet supported" >&2
     exit 1
 }
+
+# vrnc and vcrn: run an OCI runtime bundle tarball (OCI_IMAGE_OUTPUT_MODE = "bundle")
+# in the guest. The bundle's config.json describes how it runs, and it is removed
+# again when the container exits.
+bundle_error() {
+    echo -e "${RED}[$VCONTAINER_RUNTIME_NAME]${NC} $1" >&2
+    exit 1
+}
+
+# Text that the guest's shell reads back as the same list of arguments
+bundle_quote() {
+    [ $# -eq 0 ] || printf '%q ' "$@"
+}
+
+# The id names files in the guest
+bundle_check_id() {
+    if [[ ! "$1" =~ ^[A-Za-z0-9_+.-]+$ ]] || [ "$1" = "." ] || [ "$1" = ".." ]; then
+        bundle_error "Invalid container id: $1"
+    fi
+}
+
+# Container state lives in the guest, so it has to outlast this command
+bundle_require_daemon() {
+    [ "$NO_DAEMON" != "true" ] || bundle_error "$1 needs the daemon, because containers live in the guest. Remove --no-daemon"
+    daemon_is_running || [ "$(config_get "auto-daemon" "true")" = "true" ] || \
+        bundle_error "$1 needs the daemon, because containers live in the guest. Start it with '$VCONTAINER_RUNTIME_NAME vmemres start'"
+}
+
+# Sort options of run, create and exec from what follows them. Only the options
+# that take a value need naming, to not mistake that value for the container.
+bundle_parse_options() {
+    BUNDLE_PATH="."
+    BUNDLE_OPTS=()
+    BUNDLE_POSITIONAL=()
+    BUNDLE_DETACH="false"
+    BUNDLE_KEEP="false"
+    BUNDLE_TTY="false"
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --pid-file|--pid-file=*|--console-socket|--console-socket=*|--pidfd-socket|--pidfd-socket=*|-p|--process|--process=*)
+                bundle_error "$1 names a path in the guest, which is not supported"
+                ;;
+            -b|--bundle)
+                [ $# -ge 2 ] || bundle_error "$1 requires a value"
+                BUNDLE_PATH="$2"
+                shift 2
+                ;;
+            --bundle=*)
+                BUNDLE_PATH="${1#--bundle=}"
+                shift
+                ;;
+            -e|--env|--cwd|-u|--user|-g|--additional-gids|-c|--cap|--process-label|--apparmor|--preserve-fds|--cgroup)
+                [ $# -ge 2 ] || bundle_error "$1 requires a value"
+                BUNDLE_OPTS+=("$1" "$2")
+                shift 2
+                ;;
+            -*)
+                case "$1" in
+                    -d|--detach) BUNDLE_DETACH="true" ;;
+                    --keep) BUNDLE_KEEP="true" ;;
+                    -t|--tty) BUNDLE_TTY="true" ;;
+                esac
+                BUNDLE_OPTS+=("$1")
+                shift
+                ;;
+            *)
+                BUNDLE_POSITIONAL=("$@")
+                return
+                ;;
+        esac
+    done
+}
+
+# run and create: copy the bundle to the guest. A guest's copy stays for as long
+# as its container exists, which is the runtime's to say, so whatever command
+# could have ended a container removes the copies that have none.
+run_oci_bundle() {
+    local id source config arch rt opts dir prepare sweep
+
+    bundle_parse_options "${COMMAND_ARGS[@]}"
+    if [ ${#BUNDLE_POSITIONAL[@]} -ne 1 ]; then
+        bundle_error "$COMMAND requires exactly one <container-id>, after any options"
+    fi
+    id="${BUNDLE_POSITIONAL[0]}"
+    bundle_check_id "$id"
+    if [ "$COMMAND" = "create" ] || [ "$BUNDLE_DETACH" = "true" ] || [ "$BUNDLE_KEEP" = "true" ]; then
+        bundle_require_daemon "A container that outlasts this command"
+    fi
+    if [ "$NO_DAEMON" = "true" ] && daemon_is_running; then
+        bundle_error "--no-daemon can't share the state of the running daemon. Stop it with '$VCONTAINER_RUNTIME_NAME vmemres stop', or remove --no-daemon"
+    fi
+
+    # Deploy directories hold a symlink, and the guest needs the real file
+    source=$(readlink -f "$BUNDLE_PATH" || true)
+    if [ -d "$source" ]; then
+        config=$(cat "$source/config.json" 2>/dev/null || true)
+    elif [ -f "$source" ]; then
+        config=$(tar -xOf "$source" config.json 2>/dev/null || tar -xOf "$source" ./config.json 2>/dev/null || true)
+    else
+        bundle_error "Not found: $BUNDLE_PATH"
+    fi
+    [ -n "$config" ] || bundle_error "Not a runtime bundle, no config.json: $BUNDLE_PATH"
+
+    arch=$(echo "$config" | sed -n 's/.*"org.opencontainers.image.architecture": *"\([^"]*\)".*/\1/p' | head -n 1)
+    if [ -n "$arch" ] && [ "$arch" != "$(normalize_arch_to_oci "$TARGET_ARCH")" ]; then
+        bundle_error "Bundle is for $arch, not $(normalize_arch_to_oci "$TARGET_ARCH"). Use --arch to select the guest"
+    fi
+
+    # A directory's owner is not root only because we are not. It reaches the
+    # guest as a tar too, since the daemon's share can't hold ownership.
+    if [ -d "$source" ]; then
+        local state_dir="${STATE_DIR:-$DEFAULT_STATE_DIR/$TARGET_ARCH}"
+        mkdir -p "$state_dir"
+        BUNDLE_TMP=$(mktemp -p "$state_dir" bundle.XXXXXX)
+        trap 'rm -f "$BUNDLE_TMP"' EXIT
+        tar --owner=0 --group=0 --numeric-owner -cf "$BUNDLE_TMP" -C "$source" .
+        source="$BUNDLE_TMP"
+    fi
+
+    rt="$VCONTAINER_BUNDLE_RUNTIME $(bundle_quote "${BUNDLE_GLOBAL_ARGS[@]}")"
+    opts=$(bundle_quote "${BUNDLE_OPTS[@]}")
+    sweep=$(bundle_sweep_cmd "$rt")
+    # {INPUT} is the file itself on a disk, and the directory holding it on
+    # the daemon's share. The subshells keep exit out of the guest's init.
+    dir="dir=\"\$VCONTAINER_STATE_DIR/oci-bundles/$id\""
+    prepare="$dir; tar_file={INPUT}; [ -d \"\$tar_file\" ] && tar_file=\"\$tar_file\"/$(bundle_quote "$(basename "$source")"); \
+if $rt state $id >/dev/null 2>&1; then echo \"container with id $id already exists\"; exit 1; fi; \
+rm -rf \"\$dir\" \"\$dir.log\"; mkdir -p \"\$dir\" && tar -xf \"\$tar_file\" -C \"\$dir\" --numeric-owner || exit 1"
+
+    if [ "$COMMAND" = "create" ] || [ "$BUNDLE_DETACH" = "true" ]; then
+        # The container inherits these, and must not have the file that holds
+        # the output of whichever command the guest runs next
+        run_runtime_command_with_input "$source" "tar" "( $prepare; \
+$rt $COMMAND $opts --bundle \"\$dir\" $id </dev/null >\"\$dir.log\" 2>&1; rc=\$?; \
+[ \$rc -eq 0 ] || cat \"\$dir.log\"; $sweep; exit \$rc )"
+    elif echo "$config" | grep -q '"terminal": *true'; then
+        bundle_require_daemon "A container with a terminal"
+        run_runtime_command_with_input "$source" "tar" "( $prepare )"
+        "$RUNNER" $(build_runner_args) --daemon-interactive -- "( $dir; \
+$rt run $opts --bundle \"\$dir\" $id; rc=\$?; $sweep; exit \$rc )"
+    else
+        run_runtime_command_with_input "$source" "tar" "( $prepare; \
+$rt run $opts --bundle \"\$dir\" $id </dev/null; rc=\$?; $sweep; exit \$rc )"
+    fi
+}
+
+bundle_sweep_cmd() {
+    echo "for d in \"\$VCONTAINER_STATE_DIR\"/oci-bundles/*/; do d=\"\${d%/}\"; [ -d \"\$d\" ] || continue; \
+$1 state \"\${d##*/}\" >/dev/null 2>&1 || rm -rf \"\$d\" \"\$d.log\"; done"
+}
+
+run_bundle_command() {
+    local rt arg
+
+    [ "${VCONTAINER_HYPERVISOR:-}" = "xen" ] && vxn_unsupported "$COMMAND"
+    rt="$VCONTAINER_BUNDLE_RUNTIME $(bundle_quote "${BUNDLE_GLOBAL_ARGS[@]}")"
+
+    case "${COMMAND_ARGS[0]:-}" in
+        -h|--help)
+            if [ "$COMMAND" = "vlogs" ]; then
+                echo "Usage: $VCONTAINER_RUNTIME_NAME vlogs <container-id>"
+                echo "Show the output of a container started with create or run -d."
+                return
+            fi
+            run_runtime_command "( $rt $COMMAND --help )"
+            return
+            ;;
+    esac
+
+    case "$COMMAND" in
+        help|h)
+            show_usage
+            ;;
+        vlogs)
+            # Not a runtime command: a detached container's output has no other way out
+            [ ${#COMMAND_ARGS[@]} -eq 1 ] || bundle_error "vlogs requires exactly one <container-id>"
+            bundle_check_id "${COMMAND_ARGS[0]}"
+            bundle_require_daemon "$COMMAND"
+            run_runtime_command "( log=\"\$VCONTAINER_STATE_DIR/oci-bundles/${COMMAND_ARGS[0]}.log\"; \
+if [ -f \"\$log\" ]; then cat \"\$log\"; else echo \"no logs for ${COMMAND_ARGS[0]}, only create and run -d keep them\"; exit 1; fi )"
+            ;;
+        run|create)
+            run_oci_bundle
+            ;;
+        exec)
+            bundle_parse_options "${COMMAND_ARGS[@]}"
+            [ ${#BUNDLE_POSITIONAL[@]} -ge 1 ] || bundle_error "exec requires a <container-id>"
+            bundle_require_daemon "$COMMAND"
+            if [ "$BUNDLE_TTY" = "true" ]; then
+                daemon_is_running || bundle_error "No daemon is running, so there are no containers"
+                "$RUNNER" $(build_runner_args) --daemon-interactive -- \
+                    "( $rt exec $(bundle_quote "${BUNDLE_OPTS[@]}" "${BUNDLE_POSITIONAL[@]}") )"
+            elif [ "$BUNDLE_DETACH" = "true" ]; then
+                run_runtime_command "( $rt exec $(bundle_quote "${BUNDLE_OPTS[@]}" "${BUNDLE_POSITIONAL[@]}") </dev/null >/dev/null 2>&1 )"
+            else
+                run_runtime_command "( $rt exec $(bundle_quote "${BUNDLE_OPTS[@]}" "${BUNDLE_POSITIONAL[@]}") </dev/null )"
+            fi
+            ;;
+        delete)
+            bundle_require_daemon "$COMMAND"
+            run_runtime_command "( $rt delete $(bundle_quote "${COMMAND_ARGS[@]}"); rc=\$?; $(bundle_sweep_cmd "$rt"); exit \$rc )"
+            ;;
+        events)
+            bundle_require_daemon "$COMMAND"
+            # Without --stats it never ends, and the guest waits for it
+            case " ${COMMAND_ARGS[*]} " in
+                *" --stats "*) ;;
+                *) bundle_error "events only works with --stats here" ;;
+            esac
+            run_runtime_command "( $rt events $(bundle_quote "${COMMAND_ARGS[@]}") )"
+            ;;
+        update)
+            for arg in "${COMMAND_ARGS[@]}"; do
+                case "$arg" in
+                    -r|--resources|--resources=*)
+                        bundle_error "$arg names a path in the guest, which is not supported"
+                        ;;
+                esac
+            done
+            bundle_require_daemon "$COMMAND"
+            run_runtime_command "( $rt update $(bundle_quote "${COMMAND_ARGS[@]}") )"
+            ;;
+        list|state|ps|kill|start|pause|resume)
+            bundle_require_daemon "$COMMAND"
+            run_runtime_command "( $rt $COMMAND $(bundle_quote "${COMMAND_ARGS[@]}") )"
+            ;;
+        features)
+            run_runtime_command "( $rt features $(bundle_quote "${COMMAND_ARGS[@]}") )"
+            ;;
+        spec|checkpoint|restore)
+            bundle_error "$COMMAND is not supported, its files would be in the guest"
+            ;;
+        *)
+            bundle_error "Unknown command: $COMMAND. See '$VCONTAINER_RUNTIME_NAME --help'"
+            ;;
+    esac
+}
+
+# vrnc and vcrn mirror runc and crun, the container engine's commands are not theirs
+if [ -n "${VCONTAINER_BUNDLE_RUNTIME:-}" ]; then
+    case "$COMMAND" in
+        vmemres)
+            ;;
+        *)
+            run_bundle_command
+            exit $?
+            ;;
+    esac
+fi
 
 # Handle commands
 case "$COMMAND" in

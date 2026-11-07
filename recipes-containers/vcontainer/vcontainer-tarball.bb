@@ -42,6 +42,8 @@ SRC_URI = "\
     file://vcontainer-common.sh \
     file://vdkr.sh \
     file://vpdmn.sh \
+    file://vrnc.sh \
+    file://vcrn.sh \
     file://boot-xen.sh \
     file://vxn.sh \
     file://vrunner-backend-qemu-xen.sh \
@@ -340,6 +342,16 @@ create_sdk_files:append () {
             fi
         done
         bbnote "Installed vdkr"
+
+        # vrnc mirrors runc for runtime bundles, in the vdkr guest
+        cp "${FILES_DIR}/vrnc.sh" "${SDK_OUT}/vrnc"
+        chmod 755 "${SDK_OUT}/vrnc"
+        for ARCH in ${ARCHITECTURES}; do
+            if [ -d "${SDK_OUT}/vdkr-blobs/${ARCH}" ]; then
+                ln -sf vrnc "${SDK_OUT}/vrnc-${ARCH}"
+            fi
+        done
+        bbnote "Installed vrnc"
     fi
 
     # Copy and set up vpdmn
@@ -354,6 +366,16 @@ create_sdk_files:append () {
             fi
         done
         bbnote "Installed vpdmn"
+
+        # vcrn mirrors crun for runtime bundles, in the vpdmn guest
+        cp "${FILES_DIR}/vcrn.sh" "${SDK_OUT}/vcrn"
+        chmod 755 "${SDK_OUT}/vcrn"
+        for ARCH in ${ARCHITECTURES}; do
+            if [ -d "${SDK_OUT}/vpdmn-blobs/${ARCH}" ]; then
+                ln -sf vcrn "${SDK_OUT}/vcrn-${ARCH}"
+            fi
+        done
+        bbnote "Installed vcrn"
     fi
 
     # -----------------------------------------------------------------------
@@ -513,6 +535,8 @@ Contents:
   environment-setup-ci      - CI environment (for yocto-autobuilder-helper)
   vdkr, vdkr-<arch>        - Docker CLI wrapper
   vpdmn, vpdmn-<arch>   - Podman CLI wrapper
+  vrnc, vrnc-<arch>     - Run an OCI runtime bundle with runc
+  vcrn, vcrn-<arch>     - Run an OCI runtime bundle with crun
   vrunner.sh            - Shared QEMU runner
   vcontainer-common.sh  - Shared CLI code
   vdkr-blobs/           - Docker QEMU blobs (per-arch subdirectories)
@@ -614,6 +638,7 @@ FOOTER
 echo "vdkr (Docker) commands:"
 echo "  vdkr images              # List docker images"
 echo "  vdkr vimport ./oci/ app  # Import OCI directory"
+echo "  vrnc run -b ./bundle.tar myapp    # Run an OCI runtime bundle with runc"
 ENVEOF
     fi
 
@@ -622,6 +647,7 @@ ENVEOF
 echo "vpdmn (Podman) commands:"
 echo "  vpdmn images             # List podman images"
 echo "  vpdmn vimport ./oci/ app # Import OCI directory"
+echo "  vcrn run -b ./bundle.tar myapp    # Run an OCI runtime bundle with crun"
 ENVEOF
     fi
 

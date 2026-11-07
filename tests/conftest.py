@@ -171,6 +171,12 @@ def pytest_addoption(parser):
     )
     # container-cross-install options
     parser.addoption(
+        "--oci-bundle",
+        action="store",
+        default=None,
+        help="Runtime bundle tarball for test_oci_bundle.py, instead of building oci-bundle-test-container",
+    )
+    parser.addoption(
         "--poky-dir",
         action="store",
         default=os.environ.get("POKY_DIR", "/opt/bruce/poky"),

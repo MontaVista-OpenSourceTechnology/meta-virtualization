@@ -347,6 +347,12 @@ For example, to trim the namespaces and add a read-only data mount:
     OCI_RUNTIME_MOUNTS += "/data:bind:@INSTANCE_DIR@/data:rbind,ro"
     OCI_RUNTIME_CAPABILITIES = ""
 
+`+=` only adjusts a default in a recipe, after the class is inherited. In
+`local.conf` it runs before the class's `?=` and the default is lost, so use an
+override there:
+
+    OCI_RUNTIME_MOUNTS:append:pn-myapp = " /data:bind:/srv/data:rbind,ro"
+
 `@INSTANCE_DIR@` is passed through unchanged, for something on the target to
 fill in before the bundle runs.
 

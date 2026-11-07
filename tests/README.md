@@ -180,6 +180,28 @@ pytest tests/test_vdkr.py tests/test_vpdmn.py -v -m "not slow and not network" -
 
 ---
 
+## OCI Runtime Bundle Tests
+
+`test_oci_bundle.py` covers `OCI_IMAGE_OUTPUT_MODE`, the `OCI_RUNTIME_*` variables,
+`crun` and `runc` entries in `BUNDLED_CONTAINERS`, and `vrnc` and `vcrn`.
+
+```bash
+# No build needed, runs the class code directly (the build dir supplies pseudo)
+pytest tests/test_oci_bundle.py -v -m "not slow"
+
+# Builds oci-bundle-test-container, and runs it in a guest with both tools
+pytest tests/test_oci_bundle.py -v --vdkr-dir /tmp/vcontainer
+
+# Runs a bundle that is already built, instead of building it
+pytest tests/test_oci_bundle.py -v --vdkr-dir /tmp/vcontainer \
+    --oci-bundle tmp/deploy/images/qemux86-64/oci-bundle-test-container-latest-oci-bundle.tar
+```
+
+The SDK must include `vrnc` and `vcrn`, so rebuild it with
+`tests/build-vcontainer-sdk.sh` if it predates them.
+
+---
+
 ## container-cross-install Tests
 
 ### Prerequisites

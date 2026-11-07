@@ -752,6 +752,82 @@ _vxn_cert_hint() {
     } >&2
 }
 
+# The guest answers a command when it has finished, however long that takes, so
+# there is no limit on the wait unless VCONTAINER_SEND_TIMEOUT sets one, in seconds
+# without an answer. A command that is still running counts as activity for the
+# idle watchdog. Reads a line to DAEMON_LINE, and returns 124 at the limit and 1 if
+# the guest has gone. $1 is said if the line is slow to come.
+daemon_read_line() {
+    local slow_message="${1:-}"
+    local limit="${VCONTAINER_SEND_TIMEOUT:-0}"
+    local waited=0 tick=5 partial="" rc
+
+    while true; do
+        [ "$limit" -gt 0 ] && [ $((limit - waited)) -lt "$tick" ] && tick=$((limit - waited))
+        rc=0
+        { IFS= read -t "$tick" -r DAEMON_LINE <&"$DAEMON_FD_OUT"; } 2>/dev/null || rc=$?
+        if [ "$rc" -eq 0 ]; then
+            DAEMON_LINE="$partial$DAEMON_LINE"
+            return 0
+        fi
+        [ "$rc" -gt 128 ] || return 1
+
+        partial="$partial$DAEMON_LINE"
+        touch "$DAEMON_SOCKET_DIR/activity" 2>/dev/null || true
+        waited=$((waited + tick))
+        [ "$limit" -gt 0 ] && [ "$waited" -ge "$limit" ] && return 124
+        if [ -n "$slow_message" ]; then
+            log "WARN" "$slow_message"
+            slow_message=""
+        fi
+    done
+}
+
+daemon_connect() {
+    # This allows us to kill socat when we're done reading. The file descriptors
+    # are kept since the array goes away with socat, if the guest does.
+    coproc SOCAT { socat - "UNIX-CONNECT:$DAEMON_SOCKET" 2>/dev/null; }
+    DAEMON_FD_OUT="${SOCAT[0]}"
+    DAEMON_FD_IN="${SOCAT[1]}"
+    DAEMON_SOCAT_PID="$SOCAT_PID"
+}
+
+daemon_disconnect() {
+    eval "exec $DAEMON_FD_OUT<&- $DAEMON_FD_IN>&-"
+    kill "$DAEMON_SOCAT_PID" 2>/dev/null || true
+    wait "$DAEMON_SOCAT_PID" 2>/dev/null || true
+}
+
+daemon_write_command() {
+    { echo "$(echo -n "$1" | base64 -w0)" >&"$DAEMON_FD_IN"; } 2>/dev/null
+}
+
+# Say why a command got no answer, and return what daemon_read_line did
+daemon_no_answer() {
+    if [ "$1" -eq 124 ]; then
+        log "ERROR" "No answer from the guest in ${VCONTAINER_SEND_TIMEOUT}s. The command may still be running there"
+    else
+        log "ERROR" "Lost the connection to the guest before the command finished"
+    fi
+    return "$1"
+}
+
+# A command that was left behind, by a time limit or by ctrl-c, still answers when
+# it finishes, and that must not be taken for the answer to the next one. Ask for a
+# marker, and drop everything in front of it. That also waits for such a command.
+daemon_resync() {
+    local marker="===SYNC_$$_${RANDOM}==="
+    local seen=false rc=0
+
+    daemon_write_command "echo $marker" || return 1
+    while true; do
+        daemon_read_line "Waiting for an earlier command to finish in the guest" || { rc=$?; break; }
+        [ "$DAEMON_LINE" = "$marker" ] && seen=true
+        [ "$seen" = "true" ] && [ "$DAEMON_LINE" = "===END===" ] && return 0
+    done
+    return "$rc"
+}
+
 daemon_send() {
     local cmd="$1"
 
@@ -774,28 +850,35 @@ daemon_send() {
     # Update activity timestamp for idle timeout tracking
     touch "$DAEMON_SOCKET_DIR/activity" 2>/dev/null || true
 
-    # Encode command in base64 and send
-    local cmd_b64=$(echo -n "$cmd" | base64 -w0)
-
-    # Send command and read response using coproc
-    # This allows us to kill socat when we're done reading
-    coproc SOCAT { socat - "UNIX-CONNECT:$DAEMON_SOCKET" 2>/dev/null; }
-
     local EXIT_CODE=0
     local in_output=false
     local _cert_err=false
-    local TIMEOUT=60
+    local line rc=0
 
-    # Send command to socat's stdin
-    echo "$cmd_b64" >&${SOCAT[1]}
+    daemon_connect
 
-    # Read response from socat's stdout with timeout
-    while IFS= read -t $TIMEOUT -r line <&${SOCAT[0]}; do
+    daemon_resync || rc=$?
+    if [ "$rc" -ne 0 ]; then
+        daemon_disconnect
+        daemon_no_answer "$rc"
+        return
+    fi
+
+    # Read the response, which ends in ===END===
+    daemon_write_command "$cmd" || rc=1
+    while [ "$rc" -eq 0 ]; do
+        daemon_read_line || { rc=$?; break; }
+        line="$DAEMON_LINE"
         case "$line" in
             "===OUTPUT_START===")
                 in_output=true
                 ;;
             "===OUTPUT_END===")
+                in_output=false
+                ;;
+            *"===OUTPUT_END===")
+                # Output that doesn't end in a newline, like runc state's
+                echo "${line%===OUTPUT_END===}"
                 in_output=false
                 ;;
             "===EXIT_CODE="*"===")
@@ -817,10 +900,12 @@ daemon_send() {
         esac
     done
 
-    # Clean up - close FDs and kill socat
-    eval "exec ${SOCAT[0]}<&- ${SOCAT[1]}>&-"
-    kill $SOCAT_PID 2>/dev/null || true
-    wait $SOCAT_PID 2>/dev/null || true
+    daemon_disconnect
+
+    if [ "$rc" -ne 0 ]; then
+        daemon_no_answer "$rc"
+        return
+    fi
 
     [ "$_cert_err" = "true" ] && _vxn_cert_hint
 
@@ -846,6 +931,19 @@ daemon_send_with_input() {
     if [ ! -d "$share_dir" ]; then
         log "ERROR" "Daemon share directory not found: $share_dir"
         exit 1
+    fi
+
+    # A command left behind would clear the share when it finishes. Xen sends its
+    # own way, and doesn't come here with a socket to wait on.
+    if ! type hv_daemon_send >/dev/null 2>&1; then
+        local rc=0
+        daemon_connect
+        daemon_resync || rc=$?
+        daemon_disconnect
+        if [ "$rc" -ne 0 ]; then
+            daemon_no_answer "$rc"
+            return
+        fi
     fi
 
     # Clear and populate shared directory

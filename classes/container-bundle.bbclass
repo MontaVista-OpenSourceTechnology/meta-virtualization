@@ -461,6 +461,13 @@ do_compile() {
     RUNTIME="${_BUNDLE_RUNTIME}"
     bbnote "Collecting OCI images for runtime: ${RUNTIME}"
 
+    # These profiles have no container engine to use what this packages
+    case "${CONTAINER_PROFILE}" in
+        crun|runc)
+            bbwarn "${PN} packages containers for ${RUNTIME}, but CONTAINER_PROFILE is '${CONTAINER_PROFILE}', which installs no container engine. Nothing will run them unless the image installs ${RUNTIME}. To run runtime bundles with ${CONTAINER_PROFILE}, use BUNDLED_CONTAINERS instead"
+            ;;
+    esac
+
     # Collect OCI directories - NO vrunner here, just copy OCI images
     # vrunner will be run ONCE by container-cross-install at rootfs time
     for bundle in ${_PROCESSED_BUNDLES}; do

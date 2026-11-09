@@ -46,7 +46,7 @@ python vcontainer_sanity_check() {
             "  DISTRO_FEATURES: vcontainer (detected)\n"
             "  BBMULTICONFIG: vruntime-aarch64 vruntime-x86-64 %s\n"
             "Optional settings:\n"
-            "  CONTAINER_PROFILE: docker|podman (default: docker)\n"
+            "  CONTAINER_PROFILE: docker|podman|crun|runc (default: docker)\n"
             "  CONTAINER_REGISTRY_URL: registry address for container-registry feature\n"
             "  BUNDLED_CONTAINERS: containers to bundle into images"
             % ("(OK)" if not missing_mcs else "(MISSING)"))

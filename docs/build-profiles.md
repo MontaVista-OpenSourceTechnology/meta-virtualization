@@ -18,6 +18,8 @@ meta-virt-host.conf              <- base (always required first)
   container-host-k3s.conf
   container-host-k3s-node.conf
   container-host-incus.conf
+  container-host-crun.conf
+  container-host-runc.conf
   xen-host.conf                  <- Xen support (composable)
   kvm-host.conf                  <- KVM/libvirt support (composable)
 meta-virt-dev.conf               <- QEMU dev settings (opt-in)
@@ -76,6 +78,8 @@ BUILD_PROFILE ?= "podman"       # Podman + crun + netavark
 BUILD_PROFILE ?= "containerd"   # Containerd + crun + CNI
 BUILD_PROFILE ?= "k3s"          # K3s server + embedded containerd + CNI
 BUILD_PROFILE ?= "k3s-node"     # K3s agent node
+BUILD_PROFILE ?= "crun"         # crun only, for OCI runtime bundles
+BUILD_PROFILE ?= "runc"         # runc only, for OCI runtime bundles
 ```
 
 Or override from the command line:
@@ -149,6 +153,17 @@ K3s agent (worker node). Joins an existing k3s server cluster.
 - `DISTRO_FEATURES:append = " k3s"`
 
 **Results in:** k3s-agent, embedded containerd, CNI plugins.
+
+### container-host-crun.conf and container-host-runc.conf
+
+An OCI runtime with no container engine, for OCI runtime bundles (see
+container-bundling.md).
+
+**Sets:**
+- `CONTAINER_PROFILE = "crun"` or `"runc"`
+
+**Results in:** crun or runc, and `BUNDLED_CONTAINERS` entries without a runtime
+use it. No container networking.
 
 ### xen-host.conf
 

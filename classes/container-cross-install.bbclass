@@ -133,12 +133,16 @@
 # Inherit shared functions for multiconfig/machine/arch mapping
 inherit container-common
 
-# Default runtime based on CONTAINER_PROFILE (same logic as container-bundle.bbclass)
+# Default runtime based on CONTAINER_PROFILE (container-bundle.bbclass has the
+# same logic for docker and podman)
 def get_default_container_runtime(d):
     """Determine default container runtime from CONTAINER_PROFILE"""
     profile = d.getVar('CONTAINER_PROFILE') or 'docker'
     if profile in ['podman']:
         return 'podman'
+    # Only an OCI runtime, which runs runtime bundles
+    if profile in d.getVar('OCI_BUNDLE_RUNTIMES').split():
+        return profile
     # docker, containerd, k3s-*, default all use docker storage format
     return 'docker'
 

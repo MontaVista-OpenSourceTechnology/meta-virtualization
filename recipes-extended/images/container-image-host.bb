@@ -54,6 +54,8 @@ LICENSE = "MIT"
 ##    docker
 ##    k3s-host
 ##    k3s-node
+##    crun (no engine, runs OCI runtime bundles)
+##    runc (no engine, runs OCI runtime bundles)
 
 inherit features_check
 

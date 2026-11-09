@@ -370,7 +370,13 @@ Set in local.conf or image recipe:
 run a runtime bundle, so the tarball from a recipe with
 `OCI_IMAGE_OUTPUT_MODE = "bundle"` is extracted to
 `${OCI_BUNDLE_INSTALL_DIR}/<name>`, by default `/var/lib/oci-bundles/<name>`.
-The runtime must match what the recipe builds, and it isn't installed for you:
+With the `crun` or `runc` container profile, the runtime is installed and is
+the default for entries without one:
+
+    require conf/distro/include/container-host-crun.conf
+    BUNDLED_CONTAINERS = "myapp-container:autostart"
+
+With another profile, install the runtime yourself:
 
     IMAGE_INSTALL:append = " crun"
     BUNDLED_CONTAINERS = "myapp-container:crun:autostart"

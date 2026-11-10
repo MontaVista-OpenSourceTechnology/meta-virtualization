@@ -311,6 +311,8 @@ umoci backend.
     OCI_IMAGE_OUTPUT_MODE = "bundle"        # bundle only
     OCI_IMAGE_OUTPUT_MODE = "image bundle"  # both, from one image
 
+With the `crun` or `runc` container profile, the default is `image bundle`.
+
 The image type then deploys `${IMAGE_BASENAME}-latest-oci-bundle.tar`, holding
 `config.json` and `rootfs/`. Without `image` in the list, there is no OCI image
 directory or image tarballs. The bundle is unpacked from the final image, so `process.args` is the entrypoint
@@ -443,8 +445,8 @@ Set in local.conf or image recipe:
 run a runtime bundle, so the tarball from a recipe with
 `OCI_IMAGE_OUTPUT_MODE = "bundle"` is extracted to
 `${OCI_BUNDLE_INSTALL_DIR}/<name>`, by default `/var/lib/oci-bundles/<name>`.
-With the `crun` or `runc` container profile, the runtime is installed and is
-the default for entries without one:
+With the `crun` or `runc` container profile, every container recipe builds a
+bundle, and the runtime is installed and is the default for entries without one:
 
     require conf/distro/include/container-host-crun.conf
     BUNDLED_CONTAINERS = "myapp-container:autostart"
@@ -495,6 +497,11 @@ To get the digest for a remote container, use skopeo:
 Install in your host image:
 
     IMAGE_INSTALL:append:pn-container-image-host = " my-bundle"
+
+With the `crun` or `runc` container profile, the package has the runtime bundle
+of each container recipe instead of its OCI image, and the bundles are installed
+and started as with `BUNDLED_CONTAINERS` (see Runtime Bundles). Remote containers
+are skipped with a warning, since no recipe builds a bundle for them.
 
 
 Acknowledging Third-Party Container Licenses

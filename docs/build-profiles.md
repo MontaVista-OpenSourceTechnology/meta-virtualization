@@ -163,7 +163,8 @@ container-bundling.md).
 - `CONTAINER_PROFILE = "crun"` or `"runc"`
 
 **Results in:** crun or runc, and `BUNDLED_CONTAINERS` entries without a runtime
-use it. No container networking.
+use it. Container recipes build a runtime bundle as well as their image, and
+container-bundle packages have the runtime bundles. No container networking.
 
 ### xen-host.conf
 

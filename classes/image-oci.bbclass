@@ -285,7 +285,15 @@ OCI_IMAGE_TAR_OUTPUT ?= "true"
 #   bundle: an OCI runtime bundle tarball (config.json and rootfs/), unpacked
 #           from the final image, for use with runtimes such as crun and runc.
 #           Requires the umoci backend.
-OCI_IMAGE_OUTPUT_MODE ?= "image"
+# The crun and runc container profiles run runtime bundles, so with them and
+# the umoci backend, the default is both.
+def oci_default_output_mode(d):
+    if d.getVar('CONTAINER_PROFILE') in ('crun', 'runc') and \
+            d.getVar('OCI_IMAGE_BACKEND') == 'umoci':
+        return 'image bundle'
+    return 'image'
+
+OCI_IMAGE_OUTPUT_MODE ?= "${@oci_default_output_mode(d)}"
 
 # The OCI runtime spec configuration, config.json, of a runtime bundle. These
 # don't affect the image output. process.args, env, cwd and user come from the

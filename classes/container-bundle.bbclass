@@ -115,7 +115,8 @@
 #
 # Runtime Selection (in order of precedence):
 #   1. CONTAINER_BUNDLE_RUNTIME in recipe (explicit override)
-#   2. CONTAINER_PROFILE distro/local.conf setting
+#   2. CONTAINER_PROFILE distro/local.conf setting (podman, crun and runc
+#      are used as is, any other profile uses docker)
 #   3. Default: "docker"
 #
 # Remote containers:
@@ -170,6 +171,13 @@
 # The runtime subdirectory (docker/ vs podman/) tells container-cross-install
 # which vrunner runtime to use for import.
 #
+# With the crun or runc runtime, there is no storage to import into. The
+# package has the runtime bundle tarball of each container instead, in
+# ${datadir}/container-bundles/${RUNTIME}/bundles/, and container-cross-install
+# extracts it to OCI_BUNDLE_INSTALL_DIR. The crun and runc container profiles
+# build a bundle for every container recipe. Remote containers are OCI images
+# with no recipe to build a bundle, so they are skipped.
+#
 # ===========================================================================
 # Custom Service Files (CONTAINER_SERVICE_FILE)
 # ===========================================================================
@@ -190,7 +198,8 @@
 # Custom files are installed to ${datadir}/container-bundles/${RUNTIME}/services/
 # and used by container-cross-install instead of generating default services.
 #
-# For Docker, provide a .service file; for Podman, provide a .container Quadlet.
+# For Docker, crun and runc, provide a .service file; for Podman, provide a
+# .container Quadlet.
 #
 # See docs/container-bundling.md for detailed examples.
 #
@@ -208,8 +217,8 @@ CONTAINER_BUNDLE_OCI_ARCH ?= "${@oe.go.map_arch(d.getVar('TARGET_ARCH'))}"
 def get_bundle_runtime(d):
     """Determine container runtime from CONTAINER_PROFILE or default to docker"""
     profile = d.getVar('CONTAINER_PROFILE') or 'docker'
-    if profile in ['podman']:
-        return 'podman'
+    if profile == 'podman' or profile in d.getVar('OCI_BUNDLE_RUNTIMES').split():
+        return profile
     # docker, containerd, k3s-*, default all use docker storage format
     return 'docker'
 
@@ -263,11 +272,16 @@ python __anonymous() {
 
     # Get runtime from CONTAINER_BUNDLE_RUNTIME (set based on CONTAINER_PROFILE)
     runtime = d.getVar('CONTAINER_BUNDLE_RUNTIME') or 'docker'
-    if runtime not in ['docker', 'podman']:
-        bb.fatal(f"Invalid CONTAINER_BUNDLE_RUNTIME '{runtime}': must be 'docker' or 'podman'")
+    bundle_runtimes = d.getVar('OCI_BUNDLE_RUNTIMES').split()
+    runtimes = ['docker', 'podman'] + bundle_runtimes
+    if runtime not in runtimes:
+        bb.fatal(f"Invalid CONTAINER_BUNDLE_RUNTIME '{runtime}': must be one of {', '.join(runtimes)}")
+    # These run runtime bundles, which only container recipes build
+    runs_bundles = runtime in bundle_runtimes
 
     local_recipes = []
     remote_urls = []
+    skipped_urls = []
     processed_bundles = []
 
     for bundle in bundles:
@@ -286,6 +300,9 @@ python __anonymous() {
             else:
                 source = bundle
                 autostart = ""
+            if runs_bundles:
+                skipped_urls.append(source)
+                continue
             remote_urls.append(source)
         else:
             # Local: "myapp" or "myapp:autostart"
@@ -311,6 +328,7 @@ python __anonymous() {
     # Store parsed lists for tasks
     d.setVar('_LOCAL_CONTAINERS', ' '.join(local_recipes))
     d.setVar('_REMOTE_CONTAINERS', ' '.join(remote_urls))
+    d.setVar('_SKIPPED_CONTAINERS', ' '.join(skipped_urls))
     d.setVar('_PROCESSED_BUNDLES', ' '.join(processed_bundles))
     d.setVar('_BUNDLE_RUNTIME', runtime)
 
@@ -461,23 +479,46 @@ do_compile() {
     RUNTIME="${_BUNDLE_RUNTIME}"
     bbnote "Collecting OCI images for runtime: ${RUNTIME}"
 
-    # These profiles have no container engine to use what this packages
-    case "${CONTAINER_PROFILE}" in
-        crun|runc)
-            bbwarn "${PN} packages containers for ${RUNTIME}, but CONTAINER_PROFILE is '${CONTAINER_PROFILE}', which installs no container engine. Nothing will run them unless the image installs ${RUNTIME}. To run runtime bundles with ${CONTAINER_PROFILE}, use BUNDLED_CONTAINERS instead"
-            ;;
-    esac
+    rm -rf "${B}/bundles"
+
+    for source in ${_SKIPPED_CONTAINERS}; do
+        bbwarn "${PN}: skipping $source, a remote OCI image, which ${RUNTIME} can't run. ${RUNTIME} runs runtime bundles, which only container recipes build"
+    done
 
     # Collect OCI directories - NO vrunner here, just copy OCI images
     # vrunner will be run ONCE by container-cross-install at rootfs time
     for bundle in ${_PROCESSED_BUNDLES}; do
         # Extract source from bundle format
-        source=$(echo "$bundle" | sed -E 's/:(docker|podman)(:(autostart|always|unless-stopped|on-failure|no))?$//')
-        collect_oci "$source"
+        source=$(echo "$bundle" | sed -E 's/:(docker|podman|${OCI_BUNDLE_RUNTIMES_PATTERN})(:(autostart|always|unless-stopped|on-failure|no))?$//')
+        case "${RUNTIME}" in
+            ${OCI_BUNDLE_RUNTIMES_PATTERN})
+                collect_runtime_bundle "$source"
+                ;;
+            *)
+                collect_oci "$source"
+                ;;
+        esac
     done
 
     # Store metadata for autostart processing (one bundle per line)
     printf '%s\n' ${_PROCESSED_BUNDLES} > "${B}/bundle-metadata.txt"
+}
+
+# Copy the runtime bundle tarball of a container recipe, for crun and runc
+collect_runtime_bundle() {
+    local source="$1"
+    local bundle_tar="${DEPLOY_DIR_IMAGE}/${source}-latest-oci-bundle.tar"
+
+    if [ ! -e "$bundle_tar" ]; then
+        bundle_tar="${DEPLOY_DIR_IMAGE}/${source}-oci-bundle.tar"
+    fi
+    if [ ! -e "$bundle_tar" ]; then
+        bbfatal "Runtime bundle not found for '$source' in ${DEPLOY_DIR_IMAGE}, and ${RUNTIME} runs runtime bundles. Set OCI_IMAGE_OUTPUT_MODE = \"image bundle\" in that recipe"
+    fi
+
+    bbnote "Collecting runtime bundle: $bundle_tar"
+    mkdir -p "${B}/bundles"
+    cp -L "$bundle_tar" "${B}/bundles/${source}.tar"
 }
 
 collect_oci() {
@@ -531,6 +572,12 @@ do_install() {
         cp -r ${B}/oci/* ${D}${datadir}/container-bundles/${RUNTIME}/oci/
     fi
 
+    # Install runtime bundle tarballs, for crun and runc
+    if [ -d "${B}/bundles" ] && [ -n "$(ls -A ${B}/bundles 2>/dev/null)" ]; then
+        install -d ${D}${datadir}/container-bundles/${RUNTIME}/bundles
+        install -m 0644 ${B}/bundles/*.tar ${D}${datadir}/container-bundles/${RUNTIME}/bundles/
+    fi
+
     # Install OCI references file
     if [ -f "${B}/oci-refs.txt" ]; then
         install -d ${D}${datadir}/container-bundles/${RUNTIME}
@@ -563,7 +610,7 @@ do_install() {
 
             # Determine file extension based on runtime and source file
             local dest_file
-            if [ "${RUNTIME}" = "docker" ]; then
+            if [ "${RUNTIME}" = "docker" ] || is_bundle_runtime "${RUNTIME}"; then
                 dest_file="${sanitized_name}.service"
             elif [ "${RUNTIME}" = "podman" ]; then
                 dest_file="${sanitized_name}.container"

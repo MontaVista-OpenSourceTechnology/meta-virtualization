@@ -310,7 +310,8 @@ class TestBundleArchive:
 
 
 class CrossInstall:
-    """Runs the real bundle_containers under pseudo, as do_rootfs does."""
+    """Runs the real merge_installed_bundles and bundle_containers under pseudo,
+    as do_rootfs does."""
 
     def __init__(self, meta_virt_dir, pseudo, root):
         self.pseudo = pseudo
@@ -325,7 +326,7 @@ class CrossInstall:
         self.vrunner.write_text("#!/bin/sh\nexit 0\n")
         self.vrunner.chmod(0o755)
         source = (meta_virt_dir / "classes" / "container-cross-install.bbclass").read_text()
-        self.function = source[source.index("\nbundle_containers() {"):source.index("# First merge any bundles")]
+        self.function = source[source.index("\nmerge_installed_bundles() {"):source.index("# First merge any bundles")]
         common = (meta_virt_dir / "classes" / "container-common.bbclass").read_text()
         self.function = common[common.index("is_bundle_runtime() {"):] + self.function
         self.template = meta_virt_dir / "files" / "oci-bundle.service.in"
@@ -341,7 +342,7 @@ class CrossInstall:
         return subprocess.run([str(self.pseudo / "bin" / "pseudo"), "dash", "-c", script],
                               env=self.pseudo_env(), capture_output=True, text=True)
 
-    def run(self, bundled, service_map=""):
+    def run(self, bundled="", service_map="", function="bundle_containers"):
         values = {
             "BUNDLED_CONTAINERS": bundled, "DEPLOY_DIR_IMAGE": str(self.deploy),
             "IMAGE_ROOTFS": str(self.rootfs), "OCI_BUNDLE_INSTALL_DIR": "/var/lib/oci-bundles",
@@ -350,18 +351,36 @@ class CrossInstall:
             "WORKDIR": str(self.root / "work"), "MACHINE": "qemux86-64", "bindir": "/usr/bin",
             "VDKR_BLOB_DIR": str(self.root / "vdkr"), "VPDMN_BLOB_DIR": str(self.root / "vpdmn"),
             "CONTAINER_IMPORT_TIMEOUT_BASE": "1", "CONTAINER_IMPORT_TIMEOUT_PER": "1",
-            "STAGING_BINDIR_NATIVE": "/nonexistent", "OCI_BUNDLE_RUNTIMES_PATTERN": "crun|runc",
+            "STAGING_BINDIR_NATIVE": "/nonexistent", "datadir": "/usr/share",
+            "OCI_BUNDLE_RUNTIMES": "crun runc", "OCI_BUNDLE_RUNTIMES_PATTERN": "crun|runc",
             "OCI_BUNDLE_SERVICE_TEMPLATE": str(self.template),
             "OCI_BUNDLE_CGROUPS_PATH_SCRIPT": str(self.cgroups_path),
         }
-        function = re.sub(r"\$\{([A-Za-z_]+)\}",
-                          lambda m: values.get(m.group(1), m.group(0)), self.function)
+        source = re.sub(r"\$\{([A-Za-z_]+)\}",
+                        lambda m: values.get(m.group(1), m.group(0)), self.function)
         return self.shell('bbnote() { :; }\nbbwarn() { echo "WARNING: $*"; }\n'
                           'bbfatal() { echo "FATAL: $*"; exit 1; }\n'
-                          + function + "\nbundle_containers\n")
+                          + source + f"\n{function}\n")
 
     def add_bundle(self, name, config=b"{}"):
         path = self.root / f"{name}.tar"
+        self.write_bundle(path, config)
+        os.symlink(path, self.deploy / f"{name}-latest-oci-bundle.tar")
+
+    def add_package(self, name, runtime, policy="", config=b"{}", service=None):
+        """What a container-bundle package installs for crun or runc."""
+        bundles = self.rootfs / "usr/share/container-bundles"
+        (bundles / runtime / "bundles").mkdir(parents=True, exist_ok=True)
+        self.write_bundle(bundles / runtime / "bundles" / f"{name}.tar", config)
+        entry = f"{name}:{runtime}:{policy}" if policy else f"{name}:{runtime}"
+        with open(bundles / "pkg.meta", "a") as meta:
+            meta.write(entry + "\n")
+        if service is not None:
+            (bundles / runtime / "services").mkdir(exist_ok=True)
+            (bundles / runtime / "services" / f"{name}.service").write_text(service)
+
+    @staticmethod
+    def write_bundle(path, config):
         with tarfile.open(path, "w", format=tarfile.PAX_FORMAT) as tar:
             def add(member, data=None, mode=0o644, uid=0, gid=0):
                 info = tarfile.TarInfo(member)
@@ -376,7 +395,6 @@ class CrossInstall:
             add("rootfs/app", None, 0o750, 1001, 1001)
             add("rootfs/app/f", b"f", 0o644, 1001, 1002)
             add("rootfs/su", b"su", 0o4755)
-        os.symlink(path, self.deploy / f"{name}-latest-oci-bundle.tar")
 
     def add_image(self, name):
         (self.deploy / f"{name}-latest-oci").mkdir()
@@ -493,6 +511,56 @@ class TestCrossInstallBundle:
         result = cross_install.run("app:docker app:crun")
         assert result.returncode == 0, result.stdout + result.stderr
         assert (cross_install.rootfs / "var/lib/oci-bundles/app/config.json").exists()
+
+
+class TestInstalledBundlePackage:
+    """crun and runc bundles from container-bundle packages in IMAGE_INSTALL."""
+
+    SERVICE = "lib/systemd/system/container-app.service"
+
+    def merge(self, cross_install):
+        return cross_install.run(function="merge_installed_bundles")
+
+    def test_extracted_with_owners_and_modes(self, cross_install):
+        cross_install.add_package("app", "crun")
+        result = self.merge(cross_install)
+        assert result.returncode == 0, result.stdout + result.stderr
+        bundle = cross_install.rootfs / "var" / "lib" / "oci-bundles" / "app"
+        assert (bundle / "config.json").exists()
+        listing = cross_install.shell(f'stat -c "%a %u %g %n" {bundle}/rootfs/app {bundle}/rootfs/app/f {bundle}/rootfs/su')
+        lines = [" ".join(line.split()[:3]) for line in listing.stdout.splitlines()]
+        assert lines == ["750 1001 1001", "644 1001 1002", "4755 0 0"], listing.stdout + listing.stderr
+        assert not (cross_install.rootfs / "usr/share/container-bundles").exists()
+        assert not (cross_install.rootfs / self.SERVICE).exists()
+
+    @pytest.mark.parametrize("runtime", ["crun", "runc"])
+    def test_autostart_service(self, cross_install, runtime):
+        (cross_install.rootfs / "usr/bin/runc").touch()
+        cross_install.add_package("app", runtime, "autostart")
+        result = self.merge(cross_install)
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "WARNING" not in result.stdout
+        service = (cross_install.rootfs / self.SERVICE).read_text()
+        assert "Restart=always" in service
+        assert "Delegate=yes" in service
+        assert f"ExecStart=/usr/bin/{runtime} run --bundle /var/lib/oci-bundles/app app" in service
+        wants = cross_install.rootfs / "etc/systemd/system/multi-user.target.wants/container-app.service"
+        assert os.readlink(wants) == "/lib/systemd/system/container-app.service"
+        config = json.loads((cross_install.rootfs / "var/lib/oci-bundles/app/config.json").read_text())
+        assert config["linux"]["cgroupsPath"] == "/system.slice/container-app.service/container"
+
+    def test_custom_service_file(self, cross_install):
+        custom = "[Service]\nExecStart=/custom\n"
+        cross_install.add_package("app", "crun", "autostart", service=custom)
+        result = self.merge(cross_install)
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert (cross_install.rootfs / self.SERVICE).read_text() == custom
+
+    def test_missing_runtime_warns(self, cross_install):
+        cross_install.add_package("app", "runc")
+        result = self.merge(cross_install)
+        assert result.returncode == 0
+        assert "WARNING: app uses runc" in result.stdout
 
 
 class TestRestartPolicy:

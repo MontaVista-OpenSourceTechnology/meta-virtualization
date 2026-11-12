@@ -272,5 +272,6 @@ python do_deploy() {
 }
 
 addtask do_deploy after do_create_multiarch_index before do_build
+SPDX_DEPLOY_ALLOW_EMPTY:task-deploy = "1"
 
 EXCLUDE_FROM_WORLD = "1"

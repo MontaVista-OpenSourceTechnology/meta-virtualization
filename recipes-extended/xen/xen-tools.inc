@@ -954,3 +954,4 @@ do_deploy() {
 # - add the task before do_build to ensure that deployment has completed when
 #   the recipe build done stamp is written
 addtask deploy after do_install do_populate_sysroot before do_build
+SPDX_DEPLOY_ALLOW_EMPTY:task-deploy = "1"

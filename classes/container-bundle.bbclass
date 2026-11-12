@@ -691,3 +691,4 @@ do_deploy[dirs] = "${DEPLOYDIR}"
 
 # Only add sstate for deploy when enabled
 SSTATE_SKIP_CREATION:task-deploy = "${@'' if d.getVar('CONTAINER_BUNDLE_DEPLOY') == '1' else '1'}"
+SPDX_DEPLOY_ALLOW_EMPTY:task-deploy = "1"
